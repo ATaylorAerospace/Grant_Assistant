@@ -6,7 +6,7 @@
 
 </div>
 
-<div align="center">
+<div align="left">
 
 # 🎓 GROW2 — Bedrock AgentCore Grant Matchmaking 🔍
 
