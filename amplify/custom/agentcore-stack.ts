@@ -255,6 +255,7 @@ export class AgentCoreStack extends Stack {
         });
 
         // Add custom CloudWatch Logs policy (replaces CloudWatchLogsFullAccess)
+        // AgentCore runtimes write to /aws/bedrock-agentcore/runtimes/* (not /aws/bedrock/*)
         role.addToPolicy(new iam.PolicyStatement({
             actions: [
                 'logs:CreateLogGroup',
@@ -262,7 +263,7 @@ export class AgentCoreStack extends Stack {
                 'logs:PutLogEvents'
             ],
             resources: [
-                `arn:aws:logs:${deployRegion}:${this.account}:log-group:/aws/bedrock/*`
+                `arn:aws:logs:${deployRegion}:${this.account}:log-group:/aws/bedrock-agentcore/runtimes/*`
             ]
         }));
 
@@ -307,14 +308,9 @@ export class AgentCoreStack extends Stack {
             resources: [`arn:aws:appsync:${deployRegion}:${this.account}:apis/${appsyncApiId}/*`],
         }));
 
-        // Bedrock model permissions
-        role.addToPolicy(new iam.PolicyStatement({
-            actions: ['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream'],
-            resources: [
-                `arn:aws:bedrock:${deployRegion}::foundation-model/anthropic.claude-*`,
-                `arn:aws:bedrock:${deployRegion}::foundation-model/us.anthropic.claude-*`,
-            ],
-        }));
+        // No Bedrock InvokeModel needed: grants-search-agent-v2 does not call
+        // Bedrock models directly. It performs DynamoDB scoring and AppSync writes
+        // only — the AgentCore SDK manages its own runtime invocation.
 
         return role;
     }
@@ -335,6 +331,7 @@ export class AgentCoreStack extends Stack {
         });
 
         // Add custom CloudWatch Logs policy (replaces CloudWatchLogsFullAccess)
+        // AgentCore runtimes write to /aws/bedrock-agentcore/runtimes/* (not /aws/bedrock/*)
         role.addToPolicy(new iam.PolicyStatement({
             actions: [
                 'logs:CreateLogGroup',
@@ -342,7 +339,7 @@ export class AgentCoreStack extends Stack {
                 'logs:PutLogEvents'
             ],
             resources: [
-                `arn:aws:logs:${deployRegion}:${this.account}:log-group:/aws/bedrock/*`
+                `arn:aws:logs:${deployRegion}:${this.account}:log-group:/aws/bedrock-agentcore/runtimes/*`
             ]
         }));
 
@@ -396,14 +393,9 @@ export class AgentCoreStack extends Stack {
             resources: [`arn:aws:appsync:${deployRegion}:${this.account}:apis/${appsyncApiId}/*`],
         }));
 
-        // Bedrock model permissions
-        role.addToPolicy(new iam.PolicyStatement({
-            actions: ['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream'],
-            resources: [
-                `arn:aws:bedrock:${deployRegion}::foundation-model/anthropic.claude-*`,
-                `arn:aws:bedrock:${deployRegion}::foundation-model/us.anthropic.claude-*`,
-            ],
-        }));
+        // No Bedrock InvokeModel needed: eu-grants-search-agent-v2 does not call
+        // Bedrock models directly. It performs DynamoDB/S3 scoring and AppSync writes
+        // only — the AgentCore SDK manages its own runtime invocation.
 
         return role;
     }
@@ -428,6 +420,7 @@ export class AgentCoreStack extends Stack {
         });
 
         // Add custom CloudWatch Logs policy (replaces CloudWatchLogsFullAccess)
+        // AgentCore runtimes write to /aws/bedrock-agentcore/runtimes/* (not /aws/bedrock/*)
         role.addToPolicy(new iam.PolicyStatement({
             actions: [
                 'logs:CreateLogGroup',
@@ -435,7 +428,7 @@ export class AgentCoreStack extends Stack {
                 'logs:PutLogEvents'
             ],
             resources: [
-                `arn:aws:logs:${deployRegion}:${this.account}:log-group:/aws/bedrock/*`
+                `arn:aws:logs:${deployRegion}:${this.account}:log-group:/aws/bedrock-agentcore/runtimes/*`
             ]
         }));
 
@@ -618,6 +611,7 @@ export class AgentCoreStack extends Stack {
         });
 
         // Add custom CloudWatch Logs policy (replaces CloudWatchLogsFullAccess)
+        // AgentCore runtimes write to /aws/bedrock-agentcore/runtimes/* (not /aws/bedrock/*)
         role.addToPolicy(new iam.PolicyStatement({
             actions: [
                 'logs:CreateLogGroup',
@@ -625,7 +619,7 @@ export class AgentCoreStack extends Stack {
                 'logs:PutLogEvents'
             ],
             resources: [
-                `arn:aws:logs:${deployRegion}:${this.account}:log-group:/aws/bedrock/*`
+                `arn:aws:logs:${deployRegion}:${this.account}:log-group:/aws/bedrock-agentcore/runtimes/*`
             ]
         }));
 
@@ -647,14 +641,8 @@ export class AgentCoreStack extends Stack {
             ],
         }));
 
-        // Bedrock model permissions (for any text processing)
-        role.addToPolicy(new iam.PolicyStatement({
-            actions: ['bedrock:InvokeModel'],
-            resources: [
-                `arn:aws:bedrock:${deployRegion}::foundation-model/anthropic.claude-*`,
-                `arn:aws:bedrock:${deployRegion}::foundation-model/us.anthropic.claude-*`,
-            ],
-        }));
+        // No Bedrock InvokeModel needed: pdf-converter-agent converts HTML to PDF
+        // using weasyprint and writes to S3. It does not call Bedrock models directly.
 
         return role;
     }
@@ -671,6 +659,7 @@ export class AgentCoreStack extends Stack {
         });
 
         // Add custom CloudWatch Logs policy (replaces CloudWatchLogsFullAccess)
+        // AgentCore runtimes write to /aws/bedrock-agentcore/runtimes/* (not /aws/bedrock/*)
         role.addToPolicy(new iam.PolicyStatement({
             actions: [
                 'logs:CreateLogGroup',
@@ -678,7 +667,7 @@ export class AgentCoreStack extends Stack {
                 'logs:PutLogEvents'
             ],
             resources: [
-                `arn:aws:logs:${deployRegion}:${this.account}:log-group:/aws/bedrock/*`
+                `arn:aws:logs:${deployRegion}:${this.account}:log-group:/aws/bedrock-agentcore/runtimes/*`
             ]
         }));
 
@@ -713,12 +702,33 @@ export class AgentCoreStack extends Stack {
             resources: [`arn:aws:appsync:${deployRegion}:${this.account}:apis/${appsyncApiId}/*`],
         }));
 
-        // Bedrock model permissions
+        // Bedrock Inference Profile (for cross-region routing)
+        // proposal-evaluator-agent invokes Sonnet 4.5 via the us.* / eu.* profile
         role.addToPolicy(new iam.PolicyStatement({
-            actions: ['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream'],
+            actions: ['bedrock:InvokeModel'],
             resources: [
-                `arn:aws:bedrock:${deployRegion}::foundation-model/anthropic.claude-*`,
-                `arn:aws:bedrock:${deployRegion}::foundation-model/us.anthropic.claude-*`,
+                `arn:aws:bedrock:${deployRegion}:${this.account}:inference-profile/us.anthropic.claude-sonnet-4-5-*`,
+                `arn:aws:bedrock:${deployRegion}:${this.account}:inference-profile/eu.anthropic.claude-sonnet-4-5-*`,
+            ],
+        }));
+
+        // Foundation model permissions for cross-region routing targets
+        role.addToPolicy(new iam.PolicyStatement({
+            actions: ['bedrock:InvokeModel'],
+            resources: [
+                // US regions
+                `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
+                `arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
+                `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
+                // EU regions
+                `arn:aws:bedrock:eu-west-1::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
+                `arn:aws:bedrock:eu-west-2::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
+                `arn:aws:bedrock:eu-west-3::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
+                `arn:aws:bedrock:eu-central-1::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
+                `arn:aws:bedrock:eu-central-2::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
+                `arn:aws:bedrock:eu-north-1::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
+                `arn:aws:bedrock:eu-south-1::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
+                `arn:aws:bedrock:eu-south-2::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
             ],
         }));
 
