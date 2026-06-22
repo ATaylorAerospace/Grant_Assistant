@@ -1,5 +1,11 @@
 <!-- SPDX-License-Identifier: MIT -->
 
+<div align="right">
+
+[🚀 Quick Start](#-quick-start-deployment) · [🤖 Agents](#-agent-system) · [🛡️ Security](#️-security) · [👩‍💻 Dev](#-development) · [🧹 Cleanup](#-cleanup)
+
+</div>
+
 <div align="center">
 
 # 🎓 GROW2 — Bedrock AgentCore Grant Matchmaking 🔍
@@ -43,9 +49,20 @@ GROW2 is a multi-agent system built on **Amazon Bedrock AgentCore** that helps r
 
 ## 🏛️ Architecture
 
-![GROW2 Architecture Diagram](install_docs/images/architectureDiagram.png)
+<img align="right" width="55%" src="install_docs/images/architectureDiagram.png" alt="GROW2 Architecture Diagram">
 
-The diagram shows the GROW2 system architecture, including AWS services, data flows, and integration points. Key components include **Bedrock AgentCore agents**, an **AppSync GraphQL API**, **Lambda functions**, **OpenSearch** vector search, **DynamoDB** tables, and the **React** frontend.
+The GROW2 system integrates the following AWS services and data flows:
+
+- **Bedrock AgentCore** — five orchestrated AI agents
+- **AppSync GraphQL API** — real-time queries and mutations
+- **Lambda functions** — serverless compute for all business logic
+- **OpenSearch Serverless** — vector search for grant matching
+- **DynamoDB** — user profiles, agent configs, grant records
+- **S3** — document storage, EU grants cache, proposals
+- **Cognito** — authentication and MFA
+- **React frontend** — TypeScript + Amplify UI components
+
+<br clear="right"/>
 
 ## 🤖 Agent System
 
@@ -230,11 +247,15 @@ That's it. The deploy script handles everything else.
 
 ### Bedrock Guardrails
 
+<img align="right" width="42%" src="https://img.shields.io/badge/Guardrail-Prompt%20Injection%20%7C%20Jailbreak%20%7C%20Hate%20Speech-red?style=for-the-badge" alt="Guardrail Coverage">
+
 GROW2 includes an Amazon Bedrock Guardrail (`GROW2-PromptInjection-Guardrail`) that protects user-facing AI functions against prompt injection, jailbreaks, and prompt leakage. It deploys automatically as part of the CDK stack.
 
 **Protected components** (4 Lambda functions): AI Chat Assistant · US Grants Search · EU Grants Search · Proposal Generation
 
 **Blocked at HIGH strength:** prompt attacks (injection, jailbreaks, prompt leakage), hate speech, insults, sexual content, violence.
+
+<br clear="right"/>
 
 **Quick test** — type this in the Chat or Grant Search:
 
