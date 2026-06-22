@@ -49,20 +49,90 @@ GROW2 is a multi-agent system built on **Amazon Bedrock AgentCore** that helps r
 
 ## 🏛️ Architecture
 
-<img align="right" width="55%" src="install_docs/images/architectureDiagram.png" alt="GROW2 Architecture Diagram">
+GROW2 is a fully serverless, multi-agent platform on AWS. Requests flow from the React SPA through a rate-limited GraphQL API into Lambda compute, which orchestrates five Bedrock AgentCore agents backed by cross-region Claude models, OpenSearch vector search, and a Bedrock Knowledge Base.
 
-The GROW2 system integrates the following AWS services and data flows:
+```mermaid
+%%{init: {'theme':'base','themeVariables':{'fontSize':'15px','primaryColor':'#1f2937','primaryTextColor':'#f9fafb','lineColor':'#9ca3af','clusterBkg':'#f3f4f6','clusterBorder':'#d1d5db'}}}%%
+flowchart TB
+    User([👤 Researcher]):::user
 
-- **Bedrock AgentCore** — five orchestrated AI agents
-- **AppSync GraphQL API** — real-time queries and mutations
-- **Lambda functions** — serverless compute for all business logic
-- **OpenSearch Serverless** — vector search for grant matching
-- **DynamoDB** — user profiles, agent configs, grant records
-- **S3** — document storage, EU grants cache, proposals
-- **Cognito** — authentication and MFA
-- **React frontend** — TypeScript + Amplify UI components
+    subgraph EDGE["🌐 Edge & Frontend"]
+        direction LR
+        SPA["⚛️ React SPA<br/>Amplify Hosting"]:::front
+        WAF["🛡️ AWS WAF<br/>Rate Limit / IP"]:::sec
+    end
 
-<br clear="right"/>
+    subgraph ACCESS["🔐 Access & API"]
+        direction LR
+        COG["🔑 Cognito<br/>User Pool + MFA"]:::sec
+        API["🔗 AppSync<br/>GraphQL API"]:::api
+        GUARD["🚧 Bedrock Guardrail<br/>Prompt-Injection"]:::sec
+    end
+
+    subgraph COMPUTE["⚙️ Compute — Lambda (Python 3.14 / Node.js 22)"]
+        direction LR
+        FN_CHAT["💬 Chat Handler"]:::fn
+        FN_SEARCH["🔎 Grants Search"]:::fn
+        FN_PROP["📝 Proposal Gen"]:::fn
+        FN_KB["📚 KB Manager"]:::fn
+        SFN["🔁 Step Functions<br/>Agent Discovery"]:::fn
+    end
+
+    subgraph AGENTS["🤖 Bedrock AgentCore — 5 Agents"]
+        direction LR
+        A_US["🇺🇸 US Grants"]:::agent
+        A_EU["🇪🇺 EU Grants"]:::agent
+        A_GEN["📝 Proposal Generation"]:::agent
+        A_EVAL["📊 Proposal Evaluator"]:::agent
+        A_PDF["📄 PDF Converter"]:::agent
+    end
+
+    subgraph MODELS["🧠 Claude — Cross-Region Inference (us.* / eu.*)"]
+        direction LR
+        OPUS["✨ Opus 4.6<br/>generation + scoring"]:::model
+        SONNET["⚡ Sonnet 4.6<br/>interactive chat"]:::model
+    end
+
+    subgraph DATA["🗄️ Data & Search"]
+        direction LR
+        DDB["📇 DynamoDB<br/>Profiles · Configs · Grants"]:::data
+        S3["🪣 S3<br/>Docs · EU Cache · Proposals"]:::data
+        OSS["🔍 OpenSearch Serverless<br/>Vector Search"]:::data
+        KB["📖 Bedrock<br/>Knowledge Base"]:::data
+    end
+
+    subgraph EXT["🌍 External Sources"]
+        direction LR
+        GOV["grants.gov API"]:::ext
+        EUP["EU Funding Portal"]:::ext
+    end
+
+    User --> SPA --> WAF --> API
+    SPA -.MFA.-> COG --> API
+    API --> GUARD --> FN_CHAT & FN_SEARCH & FN_PROP & FN_KB
+    API --> SFN
+    FN_CHAT & FN_SEARCH & FN_PROP --> AGENTS
+    SFN --> A_US & A_EU
+    A_GEN -.A2A.-> A_PDF & A_EVAL
+    A_GEN & A_EVAL --> OPUS
+    FN_CHAT --> SONNET
+    A_US --> GOV
+    A_EU --> EUP
+    AGENTS --> DATA
+    FN_KB --> KB --> OSS
+
+    classDef user fill:#111827,stroke:#111827,color:#fff,font-weight:bold;
+    classDef front fill:#0ea5e9,stroke:#0369a1,color:#fff;
+    classDef sec fill:#dc2626,stroke:#991b1b,color:#fff;
+    classDef api fill:#7c3aed,stroke:#5b21b6,color:#fff;
+    classDef fn fill:#f59e0b,stroke:#b45309,color:#1f2937;
+    classDef agent fill:#059669,stroke:#065f46,color:#fff;
+    classDef model fill:#d97757,stroke:#9a3412,color:#fff;
+    classDef data fill:#2563eb,stroke:#1e40af,color:#fff;
+    classDef ext fill:#6b7280,stroke:#374151,color:#fff;
+```
+
+> 📐 A detailed AWS-icon reference diagram is also available at [`install_docs/images/architectureDiagram.png`](install_docs/images/architectureDiagram.png).
 
 ## 🤖 Agent System
 
