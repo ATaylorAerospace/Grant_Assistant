@@ -20,8 +20,6 @@
 
 * * *
 
-> ⚠️ **Note:** This is sample code for non-production usage. Work with your security and legal teams to meet your organizational security, regulatory, and compliance requirements before deployment.
-
 ## 🤔 The Problem
 
 Researchers spend enormous time navigating fragmented funding databases, deciphering agency-specific proposal formats, and drafting boilerplate narrative sections — time that could be spent on the research itself. Matching the right grant to the right researcher, then assembling a compliant proposal, is slow, manual, and error-prone.
@@ -39,8 +37,6 @@ GROW2 is a multi-agent system built on **Amazon Bedrock AgentCore** that helps r
 - The delete script removes AWS services associated with the root stack
 - The stack is restricted to a **single region** per AWS account
 - The stack creates resources that **incur costs**
-- The latest **Firefox** browser is recommended for optimal experience
-- We use **GitHub Issues** to track ideas, feedback, tasks, and bugs
 - Review the **LICENSE** file — all files in this repo fall under those terms
 
 * * *
