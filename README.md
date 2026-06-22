@@ -407,7 +407,7 @@ cd Grant_Assistant
 
 * * *
 
-<div align="center">
+<div align="left">
 
 ### 🤝 Contributing
 
