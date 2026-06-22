@@ -280,7 +280,7 @@ new CfnOutput(backend.stack, 'WafWebAclArn', {
 // BEDROCK INVOKE MODEL PERMISSIONS - For Claude/Titan Models
 // ============================================================================
 
-// Chat Handler - needs Claude 4.5 Sonnet for chat responses
+// Chat Handler - needs Claude Sonnet 4.6 for chat responses (interactive path)
 // Uses region-aware inference profile: us.* for US regions, eu.* for EU regions
 // Inference profiles are account-scoped; foundation models are cross-region routing targets
 const chatHandlerRegion = Stack.of(backend.chatHandler.resources.lambda).region;
@@ -290,29 +290,42 @@ const chatHandlerAccount = Stack.of(backend.chatHandler.resources.lambda).accoun
 backend.chatHandler.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
   actions: ['bedrock:InvokeModel'],
   resources: [
-    `arn:aws:bedrock:${chatHandlerRegion}:${chatHandlerAccount}:inference-profile/us.anthropic.claude-sonnet-4-5-*`,
-    `arn:aws:bedrock:${chatHandlerRegion}:${chatHandlerAccount}:inference-profile/eu.anthropic.claude-sonnet-4-5-*`,
+    `arn:aws:bedrock:${chatHandlerRegion}:${chatHandlerAccount}:inference-profile/us.anthropic.claude-sonnet-4-6-*`,
+    `arn:aws:bedrock:${chatHandlerRegion}:${chatHandlerAccount}:inference-profile/eu.anthropic.claude-sonnet-4-6-*`,
   ]
 }));
 
 // Foundation model permissions for cross-region routing
 // us.* profiles route to US regions; eu.* profiles route to EU regions
+// Sonnet 4.6 ARNs follow the Opus 4.6 convention (no date stamp); both -v1 and
+// -v1:0 are granted to cover either resolved form.
 backend.chatHandler.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
   actions: ['bedrock:InvokeModel'],
   resources: [
     // US regions
-    `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
-    `arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
-    `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
+    `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-sonnet-4-6-v1`,
+    `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
+    `arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-sonnet-4-6-v1`,
+    `arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
+    `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-sonnet-4-6-v1`,
+    `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
     // EU regions
-    `arn:aws:bedrock:eu-west-1::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
-    `arn:aws:bedrock:eu-west-2::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
-    `arn:aws:bedrock:eu-west-3::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
-    `arn:aws:bedrock:eu-central-1::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
-    `arn:aws:bedrock:eu-central-2::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
-    `arn:aws:bedrock:eu-north-1::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
-    `arn:aws:bedrock:eu-south-1::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
-    `arn:aws:bedrock:eu-south-2::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
+    `arn:aws:bedrock:eu-west-1::foundation-model/anthropic.claude-sonnet-4-6-v1`,
+    `arn:aws:bedrock:eu-west-1::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
+    `arn:aws:bedrock:eu-west-2::foundation-model/anthropic.claude-sonnet-4-6-v1`,
+    `arn:aws:bedrock:eu-west-2::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
+    `arn:aws:bedrock:eu-west-3::foundation-model/anthropic.claude-sonnet-4-6-v1`,
+    `arn:aws:bedrock:eu-west-3::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
+    `arn:aws:bedrock:eu-central-1::foundation-model/anthropic.claude-sonnet-4-6-v1`,
+    `arn:aws:bedrock:eu-central-1::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
+    `arn:aws:bedrock:eu-central-2::foundation-model/anthropic.claude-sonnet-4-6-v1`,
+    `arn:aws:bedrock:eu-central-2::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
+    `arn:aws:bedrock:eu-north-1::foundation-model/anthropic.claude-sonnet-4-6-v1`,
+    `arn:aws:bedrock:eu-north-1::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
+    `arn:aws:bedrock:eu-south-1::foundation-model/anthropic.claude-sonnet-4-6-v1`,
+    `arn:aws:bedrock:eu-south-1::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
+    `arn:aws:bedrock:eu-south-2::foundation-model/anthropic.claude-sonnet-4-6-v1`,
+    `arn:aws:bedrock:eu-south-2::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
   ]
 }));
 
@@ -330,9 +343,9 @@ backend.chatHandler.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
 // Prompt IDs will be set after BedrockPrompts stack is created (see line ~1540)
 
 // Prompt Manager can invoke Claude models for testing prompts
-// SECURITY FIX: Scope to the specific Claude model version used in production
-// (Claude Sonnet 4.5), invoked via region-aware cross-region inference profiles
-// to match the chat, grants-search, and proposal-generation paths.
+// SECURITY FIX: Scope to the interactive model standard (Claude Sonnet 4.6),
+// invoked via region-aware cross-region inference profiles to match the
+// chat assistant.
 const promptManagerRegion = Stack.of(backend.promptManager.resources.lambda).region;
 const promptManagerAccount = Stack.of(backend.promptManager.resources.lambda).account;
 
@@ -340,28 +353,41 @@ const promptManagerAccount = Stack.of(backend.promptManager.resources.lambda).ac
 backend.promptManager.resources.lambda.addToRolePolicy(new PolicyStatement({
   actions: ['bedrock:InvokeModel'],
   resources: [
-    `arn:aws:bedrock:${promptManagerRegion}:${promptManagerAccount}:inference-profile/us.anthropic.claude-sonnet-4-5-*`,
-    `arn:aws:bedrock:${promptManagerRegion}:${promptManagerAccount}:inference-profile/eu.anthropic.claude-sonnet-4-5-*`,
+    `arn:aws:bedrock:${promptManagerRegion}:${promptManagerAccount}:inference-profile/us.anthropic.claude-sonnet-4-6-*`,
+    `arn:aws:bedrock:${promptManagerRegion}:${promptManagerAccount}:inference-profile/eu.anthropic.claude-sonnet-4-6-*`,
   ]
 }));
 
 // Foundation model permissions for cross-region routing targets
+// Sonnet 4.6 ARNs follow the Opus 4.6 convention (no date stamp); both -v1 and
+// -v1:0 are granted to cover either resolved form.
 backend.promptManager.resources.lambda.addToRolePolicy(new PolicyStatement({
   actions: ['bedrock:InvokeModel'],
   resources: [
     // US regions
-    `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
-    `arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
-    `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
+    `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-sonnet-4-6-v1`,
+    `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
+    `arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-sonnet-4-6-v1`,
+    `arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
+    `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-sonnet-4-6-v1`,
+    `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
     // EU regions
-    `arn:aws:bedrock:eu-west-1::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
-    `arn:aws:bedrock:eu-west-2::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
-    `arn:aws:bedrock:eu-west-3::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
-    `arn:aws:bedrock:eu-central-1::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
-    `arn:aws:bedrock:eu-central-2::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
-    `arn:aws:bedrock:eu-north-1::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
-    `arn:aws:bedrock:eu-south-1::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
-    `arn:aws:bedrock:eu-south-2::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0`,
+    `arn:aws:bedrock:eu-west-1::foundation-model/anthropic.claude-sonnet-4-6-v1`,
+    `arn:aws:bedrock:eu-west-1::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
+    `arn:aws:bedrock:eu-west-2::foundation-model/anthropic.claude-sonnet-4-6-v1`,
+    `arn:aws:bedrock:eu-west-2::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
+    `arn:aws:bedrock:eu-west-3::foundation-model/anthropic.claude-sonnet-4-6-v1`,
+    `arn:aws:bedrock:eu-west-3::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
+    `arn:aws:bedrock:eu-central-1::foundation-model/anthropic.claude-sonnet-4-6-v1`,
+    `arn:aws:bedrock:eu-central-1::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
+    `arn:aws:bedrock:eu-central-2::foundation-model/anthropic.claude-sonnet-4-6-v1`,
+    `arn:aws:bedrock:eu-central-2::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
+    `arn:aws:bedrock:eu-north-1::foundation-model/anthropic.claude-sonnet-4-6-v1`,
+    `arn:aws:bedrock:eu-north-1::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
+    `arn:aws:bedrock:eu-south-1::foundation-model/anthropic.claude-sonnet-4-6-v1`,
+    `arn:aws:bedrock:eu-south-1::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
+    `arn:aws:bedrock:eu-south-2::foundation-model/anthropic.claude-sonnet-4-6-v1`,
+    `arn:aws:bedrock:eu-south-2::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
   ]
 }));
 

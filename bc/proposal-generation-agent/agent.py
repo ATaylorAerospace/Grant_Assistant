@@ -107,7 +107,7 @@ else:
     _REGION_PREFIX = 'us'
 
 if _MODEL_TIER == 'sonnet':
-    CLAUDE_MODEL_ID = f'{_REGION_PREFIX}.anthropic.claude-sonnet-4-5-20250929-v1:0'
+    CLAUDE_MODEL_ID = f'{_REGION_PREFIX}.anthropic.claude-sonnet-4-6-v1'
 else:
     # opus (default)
     CLAUDE_MODEL_ID = f'{_REGION_PREFIX}.anthropic.claude-opus-4-6-v1'
@@ -206,7 +206,7 @@ def invoke(payload):
         _tier = os.environ.get('PROPOSAL_MODEL_TIER', 'opus')
         _prefix = 'eu' if AWS_REGION.startswith('eu-') else 'us'
         if _tier == 'sonnet':
-            CLAUDE_MODEL_ID = f'{_prefix}.anthropic.claude-sonnet-4-5-20250929-v1:0'
+            CLAUDE_MODEL_ID = f'{_prefix}.anthropic.claude-sonnet-4-6-v1'
         else:
             CLAUDE_MODEL_ID = f'{_prefix}.anthropic.claude-opus-4-6-v1'
         print(f"[Proposal Agent] 🤖 Model: {CLAUDE_MODEL_ID} (tier={_tier})", flush=True)

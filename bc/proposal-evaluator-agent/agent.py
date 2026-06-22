@@ -353,7 +353,7 @@ Be critical but fair. Focus on what's actually in the proposal."""
     try:
         # Call Claude via Bedrock
         response = bedrock_client.invoke_model(
-            modelId='us.anthropic.claude-sonnet-4-5-20250929-v1:0',
+            modelId=f'{"eu" if AWS_REGION.startswith("eu-") else "us"}.anthropic.claude-opus-4-6-v1',
             body=json.dumps({
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": 2000,

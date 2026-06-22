@@ -23,10 +23,10 @@ def _inference_profile_prefix(region):
 
 
 # Default model used when a prompt variant does not pin its own modelId.
-# Aligned with the production model standard (Claude Sonnet 4.5) used by the
-# chat, grants-search, and proposal-generation paths.
+# The prompt-testing feature is interactive, so it uses Claude Sonnet 4.6
+# (matching the chat assistant) rather than the Opus tier.
 DEFAULT_MODEL_ID = (
-    f'{_inference_profile_prefix(REGION)}.anthropic.claude-sonnet-4-5-20250929-v1:0'
+    f'{_inference_profile_prefix(REGION)}.anthropic.claude-sonnet-4-6-v1'
 )
 
 def handler(event, context):

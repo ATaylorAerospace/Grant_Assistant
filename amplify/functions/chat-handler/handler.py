@@ -14,7 +14,7 @@ s3 = boto3.client('s3')
 # Select inference profile based on region
 # eu-west-1 uses EU cross-region profile; all US regions use US cross-region profile
 _region = os.environ.get('AWS_REGION', 'us-east-1')
-CLAUDE_MODEL_ID = 'eu.anthropic.claude-sonnet-4-5-20250929-v1:0' if _region.startswith('eu-') else 'us.anthropic.claude-sonnet-4-5-20250929-v1:0'
+CLAUDE_MODEL_ID = 'eu.anthropic.claude-sonnet-4-6-v1' if _region.startswith('eu-') else 'us.anthropic.claude-sonnet-4-6-v1'
 
 # Environment variables - All required, no fallbacks
 CHAT_SESSIONS_TABLE = os.environ['CHAT_SESSIONS_TABLE']
