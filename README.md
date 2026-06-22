@@ -131,9 +131,6 @@ flowchart TB
     classDef data fill:#2563eb,stroke:#1e40af,color:#fff;
     classDef ext fill:#6b7280,stroke:#374151,color:#fff;
 ```
-
-> 📐 A detailed AWS-icon reference diagram is also available at [`install_docs/images/architectureDiagram.png`](install_docs/images/architectureDiagram.png).
-
 ## 🤖 Agent System
 
 GROW2 ships **five AgentCore agents** wired together with an agent-to-agent (A2A) orchestration pattern. Each agent runs with least-privilege IAM and structured CloudWatch logging under `/aws/bedrock-agentcore/runtimes/*`.
