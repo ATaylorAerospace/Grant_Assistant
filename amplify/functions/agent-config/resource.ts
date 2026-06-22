@@ -26,7 +26,7 @@ export const agentConfig = defineFunction(
     }));
 
     const fn = new lambda.Function(scope, 'AgentConfigFunction', {
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'handler.handler',
       code: lambda.Code.fromAsset('amplify/functions/agent-config'),
       timeout: Duration.seconds(30),

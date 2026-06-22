@@ -11,6 +11,24 @@ from datetime import datetime
 REGION = os.environ.get('REGION', 'us-east-2')
 bedrock_agent = boto3.client('bedrock-agent', region_name=REGION)
 
+
+def _inference_profile_prefix(region):
+    """Return the cross-region inference profile prefix for the deploy region.
+
+    Claude Sonnet 4.5 is invoked through region-aware system-defined inference
+    profiles (us.* in US regions, eu.* in EU regions) rather than the bare
+    foundation-model id, which keeps this in line with the rest of the app.
+    """
+    return 'eu' if str(region).startswith('eu-') else 'us'
+
+
+# Default model used when a prompt variant does not pin its own modelId.
+# Aligned with the production model standard (Claude Sonnet 4.5) used by the
+# chat, grants-search, and proposal-generation paths.
+DEFAULT_MODEL_ID = (
+    f'{_inference_profile_prefix(REGION)}.anthropic.claude-sonnet-4-5-20250929-v1:0'
+)
+
 def handler(event, context):
     """Handle prompt management operations from AppSync."""
     print(f"Event: {json.dumps(event)}")
@@ -142,7 +160,7 @@ def test_prompt(prompt_id, test_input):
             raise Exception('No variants found for this prompt')
         
         variant = variants[0]
-        model_id = variant.get('modelId', 'anthropic.claude-3-sonnet-20240229-v1:0')
+        model_id = variant.get('modelId') or DEFAULT_MODEL_ID
         
         # Get the prompt text
         template_config = variant.get('templateConfiguration', {})

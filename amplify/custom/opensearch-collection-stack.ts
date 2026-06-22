@@ -270,7 +270,7 @@ export class OpenSearchCollectionStack extends Construct {
 
     // 9. Lambda function for automated index creation
     const indexCreatorFn = new lambda.Function(this, 'IndexCreatorFunction', {
-      runtime: lambda.Runtime.PYTHON_3_12,
+      runtime: lambda.Runtime.PYTHON_3_14,
       handler: 'handler.handler',
       code: lambda.Code.fromAsset('amplify/functions/opensearch-index-creator'),
       role: indexCreatorRole,
