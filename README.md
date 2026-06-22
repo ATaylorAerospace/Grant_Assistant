@@ -8,7 +8,7 @@
 
 <div align="left">
 
-# 🎓 GROW2 — Bedrock AgentCore Grant Matchmaking 🔍
+# 🎓 GROW2 — Bedrock AgentCore Grant Matchmaking
 
 ### Agentic AI for Research Grant Discovery & Proposal Generation
 
@@ -131,6 +131,7 @@ flowchart TB
     classDef data fill:#2563eb,stroke:#1e40af,color:#fff;
     classDef ext fill:#6b7280,stroke:#374151,color:#fff;
 ```
+* * *
 ## 🤖 Agent System
 
 GROW2 ships **five AgentCore agents** wired together with an agent-to-agent (A2A) orchestration pattern. Each agent runs with least-privilege IAM and structured CloudWatch logging under `/aws/bedrock-agentcore/runtimes/*`.
@@ -147,7 +148,7 @@ GROW2 ships **five AgentCore agents** wired together with an agent-to-agent (A2A
 
 GROW2 standardizes on the latest Claude models with **region-aware cross-region inference profiles** (`us.*` in US regions, `eu.*` in EU regions):
 
-- **Claude Opus 4.6** — quality-critical generation and evaluation (proposal drafting, proposal scoring)
+- **Claude Opus 4.6** — quality critical generation and evaluation (proposal drafting, proposal scoring)
 - **Claude Sonnet 4.6** — interactive, latency-sensitive paths (chat assistant, prompt testing)
 
 IAM policies for each function are scoped to the specific inference-profile and foundation-model ARNs the function actually invokes.
@@ -478,7 +479,7 @@ cd Grant_Assistant
 
 ### 🤝 Contributing
 
-Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) and our [Code of Conduct](CODE_OF_CONDUCT.md).
+Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md).
 
 Licensed under the [MIT License](LICENSE).
 
