@@ -223,8 +223,6 @@ The seeder starts automatically when the deployer finishes. If either shows **Fa
 3. Log in with the demo account: `test_user@example.com` / `Password123!`
 4. Complete MFA setup when prompted (see [First Login Guide](install_docs/usage/FIRST_LOGIN.md))
 
-* * *
-
 ### Step 5 — Test proposal generation end-to-end
 
 This walkthrough verifies the full pipeline — knowledge base upload, grant search, and proposal generation — using the test account and a sample document included in the repo.
@@ -287,6 +285,7 @@ Grant_Assistant/
 | `bc/` | AgentCore agent runtime code (proposal generation, evaluator, converters) |
 | `react-aws/` | React frontend integrated with the AppSync GraphQL API for real-time data |
 
+* * *
 ## ✅ Prerequisites
 
 ✅ **AWS Account** with AdministratorAccess via Identity Center
