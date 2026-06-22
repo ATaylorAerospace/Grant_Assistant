@@ -52,24 +52,24 @@ GROW2 is a multi-agent system built on **Amazon Bedrock AgentCore** that helps r
 GROW2 is a fully serverless, multi-agent platform on AWS. Requests flow from the React SPA through a rate-limited GraphQL API into Lambda compute, which orchestrates five Bedrock AgentCore agents backed by cross-region Claude models, OpenSearch vector search, and a Bedrock Knowledge Base.
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'fontSize':'15px','primaryColor':'#1f2937','primaryTextColor':'#f9fafb','lineColor':'#9ca3af','clusterBkg':'#f3f4f6','clusterBorder':'#d1d5db'}}}%%
+%%{init: {'theme':'base','themeVariables':{'fontSize':'17px','primaryColor':'#1f2937','primaryTextColor':'#f9fafb','lineColor':'#9ca3af','clusterBkg':'#e5e7eb','clusterBorder':'#9ca3af','titleColor':'#0b0f19','textColor':'#0b0f19','nodeTextColor':'#0b0f19'}}}%%
 flowchart TB
     User([👤 Researcher]):::user
 
-    subgraph EDGE["🌐 Edge & Frontend"]
+    subgraph EDGE["<b>🌐 Edge &amp; Frontend</b>"]
         direction LR
         SPA["⚛️ React SPA<br/>Amplify Hosting"]:::front
         WAF["🛡️ AWS WAF<br/>Rate Limit / IP"]:::sec
     end
 
-    subgraph ACCESS["🔐 Access & API"]
+    subgraph ACCESS["<b>🔐 Access &amp; API</b>"]
         direction LR
         COG["🔑 Cognito<br/>User Pool + MFA"]:::sec
         API["🔗 AppSync<br/>GraphQL API"]:::api
         GUARD["🚧 Bedrock Guardrail<br/>Prompt-Injection"]:::sec
     end
 
-    subgraph COMPUTE["⚙️ Compute — Lambda (Python 3.14 / Node.js 22)"]
+    subgraph COMPUTE["<b>⚙️ Compute — Lambda (Python 3.14 &#47; Node.js 22)</b>"]
         direction LR
         FN_CHAT["💬 Chat Handler"]:::fn
         FN_SEARCH["🔎 Grants Search"]:::fn
@@ -78,7 +78,7 @@ flowchart TB
         SFN["🔁 Step Functions<br/>Agent Discovery"]:::fn
     end
 
-    subgraph AGENTS["🤖 Bedrock AgentCore — 5 Agents"]
+    subgraph AGENTS["<b>🤖 Bedrock AgentCore — 5 Agents</b>"]
         direction LR
         A_US["🇺🇸 US Grants"]:::agent
         A_EU["🇪🇺 EU Grants"]:::agent
@@ -87,13 +87,13 @@ flowchart TB
         A_PDF["📄 PDF Converter"]:::agent
     end
 
-    subgraph MODELS["🧠 Claude — Cross-Region Inference (us.* / eu.*)"]
+    subgraph MODELS["<b>🧠 Claude — Cross-Region Inference</b>"]
         direction LR
         OPUS["✨ Opus 4.6<br/>generation + scoring"]:::model
         SONNET["⚡ Sonnet 4.6<br/>interactive chat"]:::model
     end
 
-    subgraph DATA["🗄️ Data & Search"]
+    subgraph DATA["<b>🗄️ Data &amp; Search</b>"]
         direction LR
         DDB["📇 DynamoDB<br/>Profiles · Configs · Grants"]:::data
         S3["🪣 S3<br/>Docs · EU Cache · Proposals"]:::data
@@ -101,7 +101,7 @@ flowchart TB
         KB["📖 Bedrock<br/>Knowledge Base"]:::data
     end
 
-    subgraph EXT["🌍 External Sources"]
+    subgraph EXT["<b>🌍 External Sources</b>"]
         direction LR
         GOV["grants.gov API"]:::ext
         EUP["EU Funding Portal"]:::ext
