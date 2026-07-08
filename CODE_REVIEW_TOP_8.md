@@ -2,7 +2,9 @@
 
 _Scope: AWS Amplify Gen2 backend, Python Bedrock AgentCore agents (`bc/`), Lambda handlers (`amplify/functions/`), and the React frontend (`react-aws/`)._
 
-Each finding below was verified by reading the cited source lines directly. Findings are ranked by severity. No code fixes are applied in this document — it is a review; recommended fix directions are included for each item.
+Each finding below was verified by reading the cited source lines directly. Findings are ranked by severity, with recommended fix directions for each item.
+
+> **Remediation status:** All 8 findings and a curated set of runner-ups have been fixed in this branch. See the "Remediation summary" section at the end for exactly what changed and which items were intentionally deferred (they require environment-specific decisions or a deploy test).
 
 ---
 
@@ -222,3 +224,30 @@ These are real defects that didn't make the top 8 but are worth fixing:
 - `amplify/backend.ts.backup-20260127-185458` — committed 54 KB backup with older, broader IAM policies.
 - `amplify/functions/kb-document-processor/handler_fixed.py` — stale duplicate of the deployed `handler.py`.
 - `amplify/custom/index-creator-lambda.py` — effectively empty; the real one is `amplify/functions/opensearch-index-creator/handler.py`.
+
+---
+
+## Remediation summary
+
+### Fixed in this branch
+
+**Top 8**
+1. **Cross-tenant exposure** — removed `allow.publicApiKey()` from `UserProfile` and `Proposal` (only Cognito frontend + IAM agents use them; agents read profiles via direct DynamoDB, so the API key was pure attack surface); shortened the API-key lifetime 365→30 days; made the web client (`client.js`) fail closed instead of falling back to the API key.
+2. **Backdoor account** — the seeder no longer hardcodes `Password123!`; it reads `SEED_TEST_USER_PASSWORD` from the deploy env and, if unset, generates a random unusable password (account exists for the default profile, but no known credential).
+3. **IDOR** — `proposals-query` now derives the user from `event.identity.sub`, rejects mismatched `userId` arguments, and returns a consistent object shape (no more JSON-string error payloads).
+4. **S3 self-trigger loop** — the processor early-returns on its own `extracted.txt` output, preventing the duplicate ingestion job.
+5. **EU records never persist** — `euFrameworkProgramme` now stores an extracted string (not the raw dict), and the mutation's return value is checked/logged instead of ignored.
+6. **Evaluator empty guidelines** — the generator now passes a real `{content, successCriteria}` payload built from the source prompt templates.
+7. **kb-search** — `fetch_limit` clamped to Bedrock's 100-result cap; enrichment failure now fails closed (no raw cross-user results).
+8. **Score drift** — the US agent uses `is not None` so legitimate `0.0` scores are preserved.
+
+**Runner-ups fixed:** HTTP timeouts on all three agent AppSync clients; scheduler `scan` pagination; removed JWT console logging in `TokenDebugger`; removed the unbound-variable log in `user-profile-agent`; corrected the EU-branch indentation `NameError` in `agent-discovery-search`; `prompt-manager` pagination; raised the Step Function timeout (8→25 min).
+
+### Intentionally deferred (need environment-specific decisions or a deploy test — not changed here)
+- **Model-level owner-scoping** (`allow.owner()` / `ownerDefinedIn('userId')`) for `Proposal`/`UserProfile`: closes auto-generated cross-user reads at the model level, but requires the `owner`/`userId` fields to be populated on existing + agent-written rows and a deploy test (shared "default profiles" complicate `UserProfile`). The IDOR resolver fix (#3) already closes the concrete proposal read path.
+- **OpenSearch `AllowFromPublic: true` → private**: requires standing up VPC endpoints first, or KB/search breaks. Config-only flip is unsafe without that.
+- **KB/proposals bucket `RemovalPolicy.DESTROY` and the proposals 7-day lifecycle**: data-retention is an owner policy decision (the 7-day expiry may be intentional cost control); changing removal policy on live buckets warrants a deploy test.
+- **Document bucket CORS `allowedOrigins: ['*']`**: needs the app's real origin(s), which aren't hardcoded here.
+- **`kb-document-upload` presigned size cap**: switching to a presigned POST with `content-length-range` changes the client upload contract (frontend + handler together).
+- **Warm-container global-state race** in the agents: correct fix is refactoring request-scoped state out of module globals — a larger change best done deliberately.
+- **Housekeeping deletions** (backup file, `handler_fixed.py`, empty `index-creator-lambda.py`) left in place to keep this PR focused on behavioral fixes.

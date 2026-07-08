@@ -142,7 +142,10 @@ export class AgentDiscoveryStepFunctionV2 extends Construct {
         this.stateMachine = new stepfunctions.StateMachine(this, 'AgentDiscoveryStateMachineV2', {
             definition,
             role: stepFunctionRole,
-            timeout: Duration.minutes(8), // 2 min wait + ~30s work + buffer
+            // Must exceed the sum of the critical-path task timeouts, otherwise the
+            // machine aborts mid-run and results/config are never written:
+            // invokeSearches (10m) + wait (2m) + consolidate (5m) + update (2m) ≈ 19m.
+            timeout: Duration.minutes(25),
             tracingEnabled: true,
             logs: {
                 destination: new logs.LogGroup(this, 'StepFunctionLogsV2'),

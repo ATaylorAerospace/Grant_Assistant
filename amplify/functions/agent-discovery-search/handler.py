@@ -1109,28 +1109,31 @@ def retrieve_and_store_results(session_id, config_id, user_id, grants_surfaced, 
                 logger.warning("EU_GRANT_RECORDS_TABLE not set, skipping EU grants")
             else:
                 eu_table = dynamodb.Table(eu_table_name)
-                
-            for session in eu_sessions:
-                # Paginate through all results using Query (efficient with GSI)
-                session_grants = []
-                eu_response = eu_table.query(
-                    IndexName='euGrantRecordsBySessionId',
-                    KeyConditionExpression=boto3.dynamodb.conditions.Key('sessionId').eq(session)
-                )
-                session_grants.extend(eu_response.get('Items', []))
-                
-                # Handle pagination
-                while 'LastEvaluatedKey' in eu_response:
+
+                # NOTE: this loop must stay nested inside the `else`. When the
+                # table name is unset, eu_table is never defined; running the
+                # loop anyway raised NameError and aborted the whole retrieval.
+                for session in eu_sessions:
+                    # Paginate through all results using Query (efficient with GSI)
+                    session_grants = []
                     eu_response = eu_table.query(
                         IndexName='euGrantRecordsBySessionId',
-                        KeyConditionExpression=boto3.dynamodb.conditions.Key('sessionId').eq(session),
-                        ExclusiveStartKey=eu_response['LastEvaluatedKey']
+                        KeyConditionExpression=boto3.dynamodb.conditions.Key('sessionId').eq(session)
                     )
                     session_grants.extend(eu_response.get('Items', []))
-                
-                eu_grants.extend(session_grants)
-                logger.info(f"🇪🇺 Session {session}: {len(session_grants)} grants (after pagination)")
-                
+
+                    # Handle pagination
+                    while 'LastEvaluatedKey' in eu_response:
+                        eu_response = eu_table.query(
+                            IndexName='euGrantRecordsBySessionId',
+                            KeyConditionExpression=boto3.dynamodb.conditions.Key('sessionId').eq(session),
+                            ExclusiveStartKey=eu_response['LastEvaluatedKey']
+                        )
+                        session_grants.extend(eu_response.get('Items', []))
+
+                    eu_grants.extend(session_grants)
+                    logger.info(f"🇪🇺 Session {session}: {len(session_grants)} grants (after pagination)")
+
                 logger.info(f"🇪🇺 Total EU grants (before dedup): {len(eu_grants)}")
         
         # 🌍 Normalize grants from both regions

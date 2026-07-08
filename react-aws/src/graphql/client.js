@@ -23,7 +23,10 @@ const httpLink = createHttpLink({
 
 // Note: WebSocket subscriptions removed - using HTTP-based SearchEvent subscriptions instead
 
-// Auth Link - use Amplify's built-in auth instead of hardcoded API key
+// Auth Link - use Amplify's Cognito session. Fails closed: if there is no valid
+// session we send the request without credentials rather than silently falling
+// back to the public API key (which would perform un-scoped, unauthenticated
+// access against the data API). Unauthenticated requests are rejected by AppSync.
 const authLink = setContext(async (_, { headers }) => {
   try {
     // Try to get Amplify auth token
@@ -41,14 +44,13 @@ const authLink = setContext(async (_, { headers }) => {
       };
     }
   } catch (error) {
-    console.log('No auth token, falling back to API key');
+    console.warn('No valid auth session; request will be sent unauthenticated and rejected.');
   }
 
-  // Fallback to API key if no auth token
+  // No API-key fallback: do not downgrade to unauthenticated access.
   return {
     headers: {
       ...headers,
-      'x-api-key': GRAPHQL_CONFIG.apiKey,
       'Content-Type': 'application/json',
     }
   };

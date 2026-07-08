@@ -35,15 +35,23 @@ def handler(event, context):
         agent_config_table = os.environ['AGENT_CONFIG_TABLE']
         table = dynamodb.Table(agent_config_table)
         
-        # Scan for active configs
-        response = table.scan(
-            FilterExpression='autoOn = :true AND isActive = :true',
-            ExpressionAttributeValues={
-                ':true': True
-            }
-        )
-        
-        configs = response.get('Items', [])
+        # Scan for active configs — paginate through ALL pages. DynamoDB scan
+        # returns at most 1 MB per page and applies the filter after the page
+        # limit, so without this loop active configs beyond the first page would
+        # silently never get an execution started.
+        configs = []
+        scan_kwargs = {
+            'FilterExpression': 'autoOn = :true AND isActive = :true',
+            'ExpressionAttributeValues': {':true': True},
+        }
+        while True:
+            response = table.scan(**scan_kwargs)
+            configs.extend(response.get('Items', []))
+            last_key = response.get('LastEvaluatedKey')
+            if not last_key:
+                break
+            scan_kwargs['ExclusiveStartKey'] = last_key
+
         logger.info(f"Found {len(configs)} active AgentConfig records")
         
         if not configs:

@@ -60,7 +60,8 @@ class AppSyncClient:
                 self.endpoint,
                 auth=auth,
                 json=payload,
-                headers=headers
+                headers=headers,
+                timeout=(10, 30)  # (connect, read) — avoid hanging the background thread forever
             )
             
             if response.status_code != 200:

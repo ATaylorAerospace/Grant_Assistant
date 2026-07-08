@@ -76,10 +76,22 @@ def handler(event, context):
 def list_prompts():
     """List all available prompts."""
     try:
-        response = bedrock_agent.list_prompts(maxResults=50)
-        
+        # Page through all results — previously only the first page (maxResults=50)
+        # was returned and nextToken was ignored, hiding prompts beyond the first 50.
+        prompt_summaries = []
+        next_token = None
+        while True:
+            kwargs = {'maxResults': 50}
+            if next_token:
+                kwargs['nextToken'] = next_token
+            response = bedrock_agent.list_prompts(**kwargs)
+            prompt_summaries.extend(response.get('promptSummaries', []))
+            next_token = response.get('nextToken')
+            if not next_token:
+                break
+
         prompts = []
-        for prompt_summary in response.get('promptSummaries', []):
+        for prompt_summary in prompt_summaries:
             prompts.append({
                 'id': prompt_summary.get('id'),
                 'arn': prompt_summary.get('arn'),
@@ -89,7 +101,7 @@ def list_prompts():
                 'updatedAt': prompt_summary.get('updatedAt').isoformat() if prompt_summary.get('updatedAt') else None,
                 'version': prompt_summary.get('version', 'DRAFT')
             })
-        
+
         return {
             'prompts': prompts,
             'count': len(prompts)

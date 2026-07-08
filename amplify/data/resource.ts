@@ -77,7 +77,9 @@ const schema = a
         last_updated: a.string(),
         orcid_id: a.string(),
       })
-      .authorization((allow) => [allow.authenticated(), allow.publicApiKey()]),
+      // PII model: Cognito-authenticated frontend and IAM-authenticated agents only.
+      // publicApiKey removed so the shipped API key cannot read/write user profiles.
+      .authorization((allow) => [allow.authenticated()]),
 
     Proposal: a
       .model({
@@ -94,9 +96,12 @@ const schema = a
         errorMessage: a.string(),
         completedAt: a.datetime(),
       })
+      // User-content model: Cognito-authenticated frontend and IAM-authenticated
+      // agents only. publicApiKey removed so the shipped API key cannot read/write
+      // proposals. Cross-user read protection is enforced in the proposals-query
+      // resolver, which scopes to the caller's identity.
       .authorization((allow) => [
         allow.authenticated(),
-        allow.publicApiKey()
       ])
       .secondaryIndexes((index) => [
         index('userId').queryField('proposalsByUser'),
@@ -635,7 +640,10 @@ export const data = defineData({
   authorizationModes: {
     defaultAuthorizationMode: 'userPool',
     apiKeyAuthorizationMode: {
-      expiresInDays: 365,
+      // Shortened from 365 days to limit the blast radius of a leaked key.
+      // The key is no longer used for PII/user-content models (see UserProfile /
+      // Proposal) and the web client no longer falls back to it (see client.js).
+      expiresInDays: 30,
     },
   },
 });

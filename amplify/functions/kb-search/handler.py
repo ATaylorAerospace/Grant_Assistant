@@ -107,8 +107,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # NOTE: We don't filter by userId in Bedrock because documents may not have userId metadata
         # Instead, we filter by userId during DynamoDB enrichment (line 147)
         try:
-            # Fetch more results to account for DynamoDB filtering
-            fetch_limit = (limit + offset) * 2
+            # Fetch more results to account for DynamoDB filtering.
+            # Bedrock's retrieve API caps numberOfResults at 100 — clamp to avoid
+            # a ValidationException that would break paginated / large searches.
+            fetch_limit = min((limit + offset) * 2, 100)
             print(f"Searching Bedrock KB without userId filter (will filter in DynamoDB enrichment)")
             search_results = perform_semantic_search(
                 query=query,
@@ -124,9 +126,13 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         try:
             enriched_results = enrich_search_results(search_results, user_id)
         except Exception as e:
-            print(f"Error enriching search results: {str(e)}")
-            # Continue with unenriched results
-            enriched_results = search_results
+            # SECURITY: enrichment is what filters results down to the caller's
+            # own documents. The raw Bedrock results are retrieved with no userId
+            # filter (across all users' documents), so we must NOT fall back to
+            # them on error — that would leak other users' document excerpts.
+            # Fail closed instead.
+            print(f"Error enriching search results (failing closed): {str(e)}")
+            raise Exception("Search failed during result enrichment")
         
         # Apply additional DynamoDB-based filtering (agency, category, etc.)
         filtered_results = apply_dynamodb_filters(enriched_results, filters)
