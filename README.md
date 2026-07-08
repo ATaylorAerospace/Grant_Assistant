@@ -220,7 +220,26 @@ The seeder starts automatically when the deployer finishes. If either shows **Fa
 
 1. Go to AWS Console → **Amplify** → **All apps**
 2. Click your app and copy the **Domain** URL
-3. Log in with the demo account: `test_user@example.com` / `Password123!`
+3. Set a password for the demo account, then log in as `test_user@example.com`.
+
+   > 🔐 **The seeder no longer creates a hardcoded password.** By default the
+   > `test_user@example.com` account is created with a random, unusable password
+   > (so there is no standing credential in the deployed system). Set your own
+   > login password after deployment:
+   >
+   > ```bash
+   > aws cognito-idp admin-set-user-password \
+   >   --user-pool-id <YOUR_USER_POOL_ID> \
+   >   --username test_user@example.com \
+   >   --password '<a-strong-password>' \
+   >   --permanent
+   > ```
+   >
+   > Find `<YOUR_USER_POOL_ID>` in AWS Console → **Cognito** → your user pool, or
+   > in `amplify_outputs.json`. Advanced: if `SEED_TEST_USER_PASSWORD` is set in
+   > the **CodeBuild deploy environment**, the seeder uses it as the initial
+   > password and this step can be skipped.
+
 4. Complete MFA setup when prompted (see [First Login Guide](install_docs/usage/FIRST_LOGIN.md))
 
 ### Step 5 — Test proposal generation end-to-end
@@ -343,6 +362,17 @@ GROW2 includes an AWS WAF WebACL (`GROW2-GraphQL-RateLimit`) attached to the App
 - **Action:** Block (HTTP 403 when exceeded)
 
 Monitor via **AWS WAF → Web ACLs → `GROW2-GraphQL-RateLimit`**. CloudWatch metrics live under the `AWS/WAFV2` namespace. To disable, remove the AppSync association; to log-only, change the `RateLimitPerIP` rule action from **Block** to **Count**.
+
+### API Authorization & Data Access
+
+User data is served only over **authenticated Cognito sessions**:
+
+- **No public API key access to user data** — the AppSync API key does not authorize the `UserProfile` (PII) or `Proposal` (user content) models. Backend agents write these models via **IAM (SigV4)**, and the React client authenticates with the Cognito user-pool token.
+- **API key lifetime is 30 days** (not a year), limiting the blast radius if a key is exposed.
+- **The web client fails closed** — if there is no valid Cognito session it does **not** fall back to the API key; unauthenticated requests are rejected by AppSync.
+- **Proposal queries are identity-scoped** — the `listProposalsByUser` resolver derives the user from the authenticated identity, so a caller can only list their own proposals.
+
+> ℹ️ Model-level owner-scoping (`allow.owner()`) for auto-generated queries is a planned follow-up; today, cross-user isolation for proposals is enforced in the resolver layer.
 
 ### Vulnerability Scanning
 
