@@ -309,6 +309,13 @@ export class PostDeploymentSeeder extends Construct {
                     // Region
                     AWS_REGION: { value: props.region },
                     AWS_DEFAULT_REGION: { value: props.region },
+
+                    // Optional seed-user password. Sourced from the deploy
+                    // environment (never hardcoded). When empty, the seeder
+                    // generates a random, unknown password so no usable
+                    // credential exists — the account is created only so the
+                    // default profile has a valid owner.
+                    SEED_TEST_USER_PASSWORD: { value: process.env.SEED_TEST_USER_PASSWORD || '' },
                 },
             },
             buildSpec: codebuild.BuildSpec.fromObject({
@@ -374,6 +381,7 @@ export class PostDeploymentSeeder extends Construct {
 import boto3
 import os
 import json
+import secrets
 from datetime import datetime
 
 cognito = boto3.client("cognito-idp", region_name=os.environ["AWS_REGION"])
@@ -381,7 +389,15 @@ dynamodb = boto3.resource("dynamodb", region_name=os.environ["AWS_REGION"])
 
 USER_POOL_ID = os.environ["USER_POOL_ID"]
 EMAIL = "test_user@example.com"
-PASSWORD = "Password123!"
+
+# SECURITY: never hardcode a permanent password. Use an explicitly supplied
+# deploy-time password if provided, otherwise generate a random one that is
+# not printed anywhere — the account exists (so the default profile has an
+# owner) but cannot be logged into without an admin password reset.
+PASSWORD = os.environ.get("SEED_TEST_USER_PASSWORD", "").strip()
+if not PASSWORD:
+    PASSWORD = secrets.token_urlsafe(24) + "aA1!"
+    print("ℹ️  No SEED_TEST_USER_PASSWORD provided; generated a random unusable password (no login).")
 
 try:
     response = cognito.admin_create_user(

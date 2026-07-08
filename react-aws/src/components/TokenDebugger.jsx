@@ -20,11 +20,10 @@ const TokenDebugger = () => {
         accessToken,
         idToken
       });
-      
-      // Log to console for easy copying
-      console.log('🔑 TokenDebugger - Access Token for Console:', accessToken);
-      console.log('🔑 TokenDebugger - ID Token:', idToken);
-      
+
+      // NOTE: never log raw JWTs to the console — they are live credentials that
+      // browser extensions, shared screens, and logging tools can capture.
+
     } catch (err) {
       setError(err.message);
     }

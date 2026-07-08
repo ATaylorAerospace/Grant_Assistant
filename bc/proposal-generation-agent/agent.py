@@ -396,10 +396,26 @@ def invoke(payload):
                     'currentStep': 'Evaluating proposal quality'
                 })
                 
+                # Build the guidelines payload the evaluator expects: a dict with
+                # `content` and `successCriteria`. Previously we passed
+                # `prepared_prompts` (a section->string map), so the evaluator's
+                # prompt.get('content') was always empty and the 40%-weighted
+                # guideline-adherence check graded against nothing. Source the
+                # guidelines from the original prompt templates.
+                evaluator_prompt = {
+                    'content': '\n\n'.join(
+                        f"## {pdata.get('name', section)}\n{pdata.get('template', '')}"
+                        for section, pdata in prompts.items()
+                    ),
+                    'successCriteria': [
+                        pdata.get('name', section) for section, pdata in prompts.items()
+                    ],
+                }
+
                 # Call Proposal Evaluator agent using AgentCore Runtime API
                 evaluation = call_proposal_evaluator_agent(
                     proposal_content=complete_proposal,
-                    prompt=prepared_prompts,
+                    prompt=evaluator_prompt,
                     content_quality=kb_context.get('contentQuality', {}),
                     grant_info=grant_info,
                     proposal_id=proposal_id,

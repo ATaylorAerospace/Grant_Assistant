@@ -257,8 +257,10 @@ def get_user_profile(user_id: str) -> str:
         # Return as dict like other agents - AgentCore handles JSON encoding
         return user_profile
     except Exception as e:
+        # Do not reference profile_response here: if get_item() raised, it was
+        # never bound and logging it would raise NameError, masking the real
+        # error and skipping this graceful return.
         logger.error(f"Unexpected error retrieving profile for user {user_id}: {str(e)}")
-        logger.error(f"Profile data: {profile_response}")
         return {"error": "Internal server error", "details": str(e)}
 
 

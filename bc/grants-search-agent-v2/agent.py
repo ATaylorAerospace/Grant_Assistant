@@ -584,8 +584,10 @@ def write_grant_record(session_id: str, grant: Dict[str, Any], table, cognito_us
             "applicationProcess": grant.get('applicationProcess', ''),
             "source": grant.get('source', 'GRANTS_GOV'),
             "relevanceScore": float(grant.get('relevanceScore', 0.85)),
-            "profileMatchScore": float(grant.get('profileMatchScore', 0)) if grant.get('profileMatchScore') else None,
-            "keywordScore": float(grant.get('keywordScore', 0)) if grant.get('keywordScore') else None,
+            # Use `is not None` so a legitimately-computed 0.0 score is preserved
+            # rather than being coerced to null (matches the EU agent's fix).
+            "profileMatchScore": float(grant.get('profileMatchScore', 0)) if grant.get('profileMatchScore') is not None else None,
+            "keywordScore": float(grant.get('keywordScore', 0)) if grant.get('keywordScore') is not None else None,
             "matchedKeywords": grant.get('matchedKeywords', []),
             "tags": grant.get('tags', [])
         }

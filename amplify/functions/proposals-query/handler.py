@@ -44,15 +44,27 @@ def handler(event, context):
     # AppSync Direct Lambda resolvers have fieldName at top level
     field_name = event.get('fieldName') or event.get('info', {}).get('fieldName')
     arguments = event.get('arguments', {})
-    
-    print(f"🔍 Field: {field_name}, Arguments: {arguments}")
-    
+
+    # SECURITY: derive the user from the authenticated Cognito identity, never
+    # from a client-supplied argument. Using arguments['userId'] directly allowed
+    # any authenticated user to read another user's proposals (IDOR).
+    identity = event.get('identity', {})
+    authed_user_id = identity.get('sub') or identity.get('username')
+
+    print(f"🔍 Field: {field_name}, Authenticated user: {authed_user_id}")
+
     try:
         if field_name == 'listProposalsByUser':
-            user_id = arguments.get('userId')
-            if not user_id:
-                return json.dumps({'error': 'userId is required'})
-            
+            if not authed_user_id:
+                return {'error': 'Unauthorized - no user identity', 'items': []}
+
+            requested_user_id = arguments.get('userId')
+            if requested_user_id and requested_user_id != authed_user_id:
+                print(f"❌ Access denied: requested userId={requested_user_id}, caller={authed_user_id}")
+                return {'error': 'Access denied - you can only list your own proposals', 'items': []}
+
+            user_id = authed_user_id
+
             # Query using GSI
             response = table.query(
                 IndexName='proposalsByUserId',
@@ -75,8 +87,10 @@ def handler(event, context):
             }
         
         else:
-            return json.dumps({'error': f'Unknown field: {field_name}'})
-            
+            return {'error': f'Unknown field: {field_name}', 'items': []}
+
     except Exception as e:
         print(f"❌ Error: {str(e)}")
-        return json.dumps({'error': str(e)})
+        # Return a consistent object shape (not a JSON string) so the client can
+        # reliably distinguish success from failure.
+        return {'error': str(e), 'items': []}

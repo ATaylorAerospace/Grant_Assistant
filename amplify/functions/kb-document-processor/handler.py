@@ -222,9 +222,17 @@ def process_s3_record(record: Dict[str, Any]) -> Dict[str, Any]:
     
     # URL-decode the S3 key (S3 events have URL-encoded keys)
     object_key = unquote_plus(object_key)
-    
+
     print(f"Processing document: s3://{bucket_name}/{object_key}")
-    
+
+    # Avoid an infinite re-processing loop: this handler writes the extracted
+    # text back under the same 'user-' prefix that triggers it. The S3
+    # notification has no suffix filter, so that write would re-invoke us and
+    # start a second (redundant) Bedrock ingestion job. Skip our own output.
+    if object_key.endswith('extracted.txt'):
+        print(f"⏭️  Skipping extracted-text artifact (self-generated): {object_key}")
+        return {'success': True, 'skipped': True, 'reason': 'extracted-text artifact'}
+
     # Parse user ID and document ID from S3 key
     # Expected format: user-{userId}/{documentId}/filename.ext
     user_id, document_id = extract_document_info(object_key)

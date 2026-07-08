@@ -521,7 +521,14 @@ def convert_eu_grant_to_ui_format(grant: Dict[str, Any]) -> Dict[str, Any]:
             'hasDetailedInfo': grant.get('hasDetailedInfo', False),
             'euReference': grant.get('reference', ''),
             'euIdentifier': grant.get('identifier', ''),
-            'euFrameworkProgramme': grant.get('frameworkProgramme', ''),
+            # euFrameworkProgramme is a String field in the schema. The raw EU API
+            # value is a dict ({description, abbreviation}); extract a string (as
+            # done for `agency` above), otherwise the AppSync mutation is rejected
+            # and the EuGrantRecord silently fails to persist.
+            'euFrameworkProgramme': (
+                (framework_programme.get('abbreviation') or framework_programme.get('description') or '')
+                if isinstance(framework_programme, dict) else (framework_programme or '')
+            ),
             'euStatus': grant.get('status', {}).get('abbreviation', '') if isinstance(grant.get('status'), dict) else grant.get('status', '')
         }
         
@@ -582,9 +589,14 @@ def write_eu_grant_record(session_id: str, grant: Dict[str, Any], table, cognito
         
         logger.info(f"[EU V2] 🔍 Record being sent - agency: {record['agency']}, amount: {record['amount']}, description length: {len(record['description'])}, hasDetailedInfo: {record['hasDetailedInfo']}")
         
-        appsync_client.create_eu_grant_record(record)
-        logger.info(f"[EU V2] ✅ Created EuGrantRecord via AppSync: {grant['grantId']}")
-        
+        created = appsync_client.create_eu_grant_record(record)
+        if created:
+            logger.info(f"[EU V2] ✅ Created EuGrantRecord via AppSync: {grant['grantId']}")
+        else:
+            # Surface the failure instead of swallowing it — previously the return
+            # value was ignored, so rejected mutations looked like successes.
+            logger.error(f"[EU V2] ❌ create_eu_grant_record returned failure for grantId={grant['grantId']}; record not persisted")
+
     except Exception as e:
         logger.error(f"[EU V2] ❌ Error writing EuGrantRecord: {str(e)}")
         raise
