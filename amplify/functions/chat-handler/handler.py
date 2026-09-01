@@ -17,11 +17,16 @@ s3 = boto3.client('s3')
 # Select inference profile based on region
 # eu-west-1 uses EU cross-region profile; all US regions use US cross-region profile
 _region = os.environ.get('AWS_REGION', 'us-east-1')
-CLAUDE_MODEL_ID = 'eu.anthropic.claude-sonnet-4-6-v1' if _region.startswith('eu-') else 'us.anthropic.claude-sonnet-4-6-v1'
+# Cross-region inference-profile form this deployment already runs on. Confirm the
+# exact Sonnet 5 profile ID in your account (aws bedrock list-inference-profiles)
+# and set CLAUDE_MODEL_ID to override if it differs.
+CLAUDE_MODEL_ID = os.environ.get('CLAUDE_MODEL_ID') or (
+    'eu.anthropic.claude-sonnet-5-v1' if _region.startswith('eu-') else 'us.anthropic.claude-sonnet-5-v1'
+)
 
-# Reply length cap. 1000 tokens cut answers off mid-sentence; 4000 is still small
-# for a non-streaming call and can be tuned per deployment.
-CHAT_MAX_TOKENS = int(os.environ.get('CHAT_MAX_TOKENS', '4000'))
+# Reply length cap. Sonnet 5 thinks by default (adaptive) and thinking counts
+# toward max_tokens, so leave headroom; still a small non-streaming call.
+CHAT_MAX_TOKENS = int(os.environ.get('CHAT_MAX_TOKENS', '8000'))
 
 # Environment variables - All required, no fallbacks
 CHAT_SESSIONS_TABLE = os.environ['CHAT_SESSIONS_TABLE']

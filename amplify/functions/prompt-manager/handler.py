@@ -23,10 +23,10 @@ def _inference_profile_prefix(region):
 
 
 # Default model used when a prompt variant does not pin its own modelId.
-# The prompt-testing feature is interactive, so it uses Claude Sonnet 4.6
+# The prompt-testing feature is interactive, so it uses Claude Sonnet 5
 # (matching the chat assistant) rather than the Opus tier.
 DEFAULT_MODEL_ID = (
-    f'{_inference_profile_prefix(REGION)}.anthropic.claude-sonnet-4-6-v1'
+    f'{_inference_profile_prefix(REGION)}.anthropic.claude-sonnet-5-v1'
 )
 
 def handler(event, context):
@@ -191,8 +191,9 @@ def test_prompt(prompt_id, test_input):
             region_name=REGION,
             config=Config(retries={'max_attempts': 5, 'mode': 'adaptive'}),
         )
-        # 500 tokens truncated most prompt previews; 4000 is still a small non-streaming call.
-        test_max_tokens = 4000
+        # 500 tokens truncated most prompt previews. Sonnet 5 thinks by default and
+        # thinking counts toward max_tokens, so leave headroom (still a small call).
+        test_max_tokens = 8000
 
         response = bedrock_runtime.invoke_model(
             modelId=model_id,

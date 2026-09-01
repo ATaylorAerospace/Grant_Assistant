@@ -174,9 +174,9 @@ A successful run produces these log lines in order:
 
 ```
 CODE VERSION: 2026-03-05-v4 — Opus 4.6 ...     ← confirms new image is running
-✅ CLAUDE_MODEL_ID: us.anthropic.claude-opus-4-6-v1  ← confirms model
+✅ CLAUDE_MODEL_ID: us.anthropic.claude-opus-5-v1  ← confirms model
 🎯 INVOKE FUNCTION CALLED!                       ← proposal request received
-🤖 Model: us.anthropic.claude-opus-4-6-v1 (tier=opus)  ← model re-confirmed
+🤖 Model: us.anthropic.claude-opus-5-v1 (tier=opus)  ← model re-confirmed
 🧵 Background thread started for proposal ...   ← async work begins
 ========== STEP 1: INITIALIZING ==========
 ========== STEP 2: RETRIEVING CONTEXT ==========
@@ -185,7 +185,7 @@ CODE VERSION: 2026-03-05-v4 — Opus 4.6 ...     ← confirms new image is runni
 🔍 PROMPTS FOUND: 3 for agency 'European-Commission-Prompt'
 ========== STEP 4: GENERATING SECTIONS ==========
 🤖 Calling Claude for section 1/3: Excellence   ← LLM call starting
-🤖 invoke_model_with_response_stream → us.anthropic.claude-opus-4-6-v1
+🤖 invoke_model_with_response_stream → us.anthropic.claude-opus-5-v1
 ✅ Claude returned 6842 words for 'Excellence'  ← LLM call done
 🤖 Calling Claude for section 2/3: Impact
 ...

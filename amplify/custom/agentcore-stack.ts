@@ -499,19 +499,19 @@ export class AgentCoreStack extends Stack {
 
         // Bedrock Inference Profile (for cross-region routing)
         // us.* profile for US regions, eu.* profile for EU regions
-        // Includes both Sonnet 4.5 (other agents) and Opus 4.6 (proposal agent)
+        // Sonnet 5 (sonnet tier) and Opus 5 (opus tier / proposal + evaluator agents)
         role.addToPolicy(new iam.PolicyStatement({
             actions: [
                 'bedrock:InvokeModel',
                 'bedrock:InvokeModelWithResponseStream',
             ],
             resources: [
-                `arn:aws:bedrock:${deployRegion}:${this.account}:inference-profile/us.anthropic.claude-sonnet-4-6-*`,
-                `arn:aws:bedrock:${deployRegion}:${this.account}:inference-profile/eu.anthropic.claude-sonnet-4-6-*`,
-                `arn:aws:bedrock:${deployRegion}:${this.account}:inference-profile/global.anthropic.claude-sonnet-4-6-*`,
-                `arn:aws:bedrock:${deployRegion}:${this.account}:inference-profile/us.anthropic.claude-opus-4-6-v1`,
-                `arn:aws:bedrock:${deployRegion}:${this.account}:inference-profile/eu.anthropic.claude-opus-4-6-v1`,
-                `arn:aws:bedrock:${deployRegion}:${this.account}:inference-profile/global.anthropic.claude-opus-4-6-v1`,
+                `arn:aws:bedrock:${deployRegion}:${this.account}:inference-profile/us.anthropic.claude-sonnet-5*`,
+                `arn:aws:bedrock:${deployRegion}:${this.account}:inference-profile/eu.anthropic.claude-sonnet-5*`,
+                `arn:aws:bedrock:${deployRegion}:${this.account}:inference-profile/global.anthropic.claude-sonnet-5*`,
+                `arn:aws:bedrock:${deployRegion}:${this.account}:inference-profile/us.anthropic.claude-opus-5*`,
+                `arn:aws:bedrock:${deployRegion}:${this.account}:inference-profile/eu.anthropic.claude-opus-5*`,
+                `arn:aws:bedrock:${deployRegion}:${this.account}:inference-profile/global.anthropic.claude-opus-5*`,
             ],
         }));
 
@@ -523,54 +523,32 @@ export class AgentCoreStack extends Stack {
                 'bedrock:InvokeModelWithResponseStream',
             ],
             resources: [
-                // Sonnet 4.6 - US regions (sonnet tier). Follows Opus 4.6 naming
-                // (no date stamp); both -v1 and -v1:0 granted to cover either form.
-                `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-sonnet-4-6-v1`,
-                `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
-                `arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-sonnet-4-6-v1`,
-                `arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
-                `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-sonnet-4-6-v1`,
-                `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
-                // Sonnet 4.6 - EU regions
-                `arn:aws:bedrock:eu-west-1::foundation-model/anthropic.claude-sonnet-4-6-v1`,
-                `arn:aws:bedrock:eu-west-1::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
-                `arn:aws:bedrock:eu-west-2::foundation-model/anthropic.claude-sonnet-4-6-v1`,
-                `arn:aws:bedrock:eu-west-2::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
-                `arn:aws:bedrock:eu-west-3::foundation-model/anthropic.claude-sonnet-4-6-v1`,
-                `arn:aws:bedrock:eu-west-3::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
-                `arn:aws:bedrock:eu-central-1::foundation-model/anthropic.claude-sonnet-4-6-v1`,
-                `arn:aws:bedrock:eu-central-1::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
-                `arn:aws:bedrock:eu-central-2::foundation-model/anthropic.claude-sonnet-4-6-v1`,
-                `arn:aws:bedrock:eu-central-2::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
-                `arn:aws:bedrock:eu-north-1::foundation-model/anthropic.claude-sonnet-4-6-v1`,
-                `arn:aws:bedrock:eu-north-1::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
-                `arn:aws:bedrock:eu-south-1::foundation-model/anthropic.claude-sonnet-4-6-v1`,
-                `arn:aws:bedrock:eu-south-1::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
-                `arn:aws:bedrock:eu-south-2::foundation-model/anthropic.claude-sonnet-4-6-v1`,
-                `arn:aws:bedrock:eu-south-2::foundation-model/anthropic.claude-sonnet-4-6-v1:0`,
-                // Opus 4.6 - US cross-region destinations (us.* profile routes to these)
-                // NOTE: Opus 4.6 ARNs have NO :0 suffix — add both just in case
-                `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-opus-4-6-v1`,
-                `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-opus-4-6-v1:0`,
-                `arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-opus-4-6-v1`,
-                `arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-opus-4-6-v1:0`,
-                `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-opus-4-6-v1`,
-                `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-opus-4-6-v1:0`,
-                // Opus 4.6 - EU cross-region destinations (eu.* profile routes to these)
-                `arn:aws:bedrock:eu-west-1::foundation-model/anthropic.claude-opus-4-6-v1`,
-                `arn:aws:bedrock:eu-west-1::foundation-model/anthropic.claude-opus-4-6-v1:0`,
-                `arn:aws:bedrock:eu-west-3::foundation-model/anthropic.claude-opus-4-6-v1`,
-                `arn:aws:bedrock:eu-west-3::foundation-model/anthropic.claude-opus-4-6-v1:0`,
-                `arn:aws:bedrock:eu-central-1::foundation-model/anthropic.claude-opus-4-6-v1`,
-                `arn:aws:bedrock:eu-central-1::foundation-model/anthropic.claude-opus-4-6-v1:0`,
-                `arn:aws:bedrock:eu-central-2::foundation-model/anthropic.claude-opus-4-6-v1`,
-                `arn:aws:bedrock:eu-central-2::foundation-model/anthropic.claude-opus-4-6-v1:0`,
-                `arn:aws:bedrock:eu-north-1::foundation-model/anthropic.claude-opus-4-6-v1`,
-                `arn:aws:bedrock:eu-north-1::foundation-model/anthropic.claude-opus-4-6-v1:0`,
-                `arn:aws:bedrock:eu-south-1::foundation-model/anthropic.claude-opus-4-6-v1`,
-                `arn:aws:bedrock:eu-south-1::foundation-model/anthropic.claude-opus-4-6-v1:0`,
-                `arn:aws:bedrock:eu-south-2::foundation-model/anthropic.claude-opus-4-6-v1`,
-                `arn:aws:bedrock:eu-south-2::foundation-model/anthropic.claude-opus-4-6-v1:0`,
+                // Sonnet 5 - US regions (sonnet tier). Model-family wildcard covers
+                // whichever suffix form Bedrock resolves (-v1, -v1:0, or none).
+                `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-sonnet-5*`,
+                `arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-sonnet-5*`,
+                `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-sonnet-5*`,
+                // Sonnet 5 - EU regions
+                `arn:aws:bedrock:eu-west-1::foundation-model/anthropic.claude-sonnet-5*`,
+                `arn:aws:bedrock:eu-west-2::foundation-model/anthropic.claude-sonnet-5*`,
+                `arn:aws:bedrock:eu-west-3::foundation-model/anthropic.claude-sonnet-5*`,
+                `arn:aws:bedrock:eu-central-1::foundation-model/anthropic.claude-sonnet-5*`,
+                `arn:aws:bedrock:eu-central-2::foundation-model/anthropic.claude-sonnet-5*`,
+                `arn:aws:bedrock:eu-north-1::foundation-model/anthropic.claude-sonnet-5*`,
+                `arn:aws:bedrock:eu-south-1::foundation-model/anthropic.claude-sonnet-5*`,
+                `arn:aws:bedrock:eu-south-2::foundation-model/anthropic.claude-sonnet-5*`,
+                // Opus 5 - US cross-region destinations (us.* profile routes to these)
+                `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-opus-5*`,
+                `arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-opus-5*`,
+                `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-opus-5*`,
+                // Opus 5 - EU cross-region destinations (eu.* profile routes to these)
+                `arn:aws:bedrock:eu-west-1::foundation-model/anthropic.claude-opus-5*`,
+                `arn:aws:bedrock:eu-west-3::foundation-model/anthropic.claude-opus-5*`,
+                `arn:aws:bedrock:eu-central-1::foundation-model/anthropic.claude-opus-5*`,
+                `arn:aws:bedrock:eu-central-2::foundation-model/anthropic.claude-opus-5*`,
+                `arn:aws:bedrock:eu-north-1::foundation-model/anthropic.claude-opus-5*`,
+                `arn:aws:bedrock:eu-south-1::foundation-model/anthropic.claude-opus-5*`,
+                `arn:aws:bedrock:eu-south-2::foundation-model/anthropic.claude-opus-5*`,
             ],
         }));
 
@@ -713,43 +691,33 @@ export class AgentCoreStack extends Stack {
         }));
 
         // Bedrock Inference Profile (for cross-region routing)
-        // proposal-evaluator-agent invokes Opus 4.6 via the us.* / eu.* profile
+        // proposal-evaluator-agent invokes Opus 5 via the us.* / eu.* profile
         // (evaluation/scoring is a reasoning-heavy quality task)
         role.addToPolicy(new iam.PolicyStatement({
             actions: ['bedrock:InvokeModel'],
             resources: [
-                `arn:aws:bedrock:${deployRegion}:${this.account}:inference-profile/us.anthropic.claude-opus-4-6-v1`,
-                `arn:aws:bedrock:${deployRegion}:${this.account}:inference-profile/eu.anthropic.claude-opus-4-6-v1`,
+                `arn:aws:bedrock:${deployRegion}:${this.account}:inference-profile/us.anthropic.claude-opus-5*`,
+                `arn:aws:bedrock:${deployRegion}:${this.account}:inference-profile/eu.anthropic.claude-opus-5*`,
             ],
         }));
 
         // Foundation model permissions for cross-region routing targets
-        // Opus 4.6 ARNs have no date stamp; both -v1 and -v1:0 granted to cover either form.
+        // Model-family wildcard covers whichever suffix form Bedrock resolves.
         role.addToPolicy(new iam.PolicyStatement({
             actions: ['bedrock:InvokeModel'],
             resources: [
                 // US regions
-                `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-opus-4-6-v1`,
-                `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-opus-4-6-v1:0`,
-                `arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-opus-4-6-v1`,
-                `arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-opus-4-6-v1:0`,
-                `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-opus-4-6-v1`,
-                `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-opus-4-6-v1:0`,
+                `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-opus-5*`,
+                `arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-opus-5*`,
+                `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-opus-5*`,
                 // EU regions
-                `arn:aws:bedrock:eu-west-1::foundation-model/anthropic.claude-opus-4-6-v1`,
-                `arn:aws:bedrock:eu-west-1::foundation-model/anthropic.claude-opus-4-6-v1:0`,
-                `arn:aws:bedrock:eu-west-3::foundation-model/anthropic.claude-opus-4-6-v1`,
-                `arn:aws:bedrock:eu-west-3::foundation-model/anthropic.claude-opus-4-6-v1:0`,
-                `arn:aws:bedrock:eu-central-1::foundation-model/anthropic.claude-opus-4-6-v1`,
-                `arn:aws:bedrock:eu-central-1::foundation-model/anthropic.claude-opus-4-6-v1:0`,
-                `arn:aws:bedrock:eu-central-2::foundation-model/anthropic.claude-opus-4-6-v1`,
-                `arn:aws:bedrock:eu-central-2::foundation-model/anthropic.claude-opus-4-6-v1:0`,
-                `arn:aws:bedrock:eu-north-1::foundation-model/anthropic.claude-opus-4-6-v1`,
-                `arn:aws:bedrock:eu-north-1::foundation-model/anthropic.claude-opus-4-6-v1:0`,
-                `arn:aws:bedrock:eu-south-1::foundation-model/anthropic.claude-opus-4-6-v1`,
-                `arn:aws:bedrock:eu-south-1::foundation-model/anthropic.claude-opus-4-6-v1:0`,
-                `arn:aws:bedrock:eu-south-2::foundation-model/anthropic.claude-opus-4-6-v1`,
-                `arn:aws:bedrock:eu-south-2::foundation-model/anthropic.claude-opus-4-6-v1:0`,
+                `arn:aws:bedrock:eu-west-1::foundation-model/anthropic.claude-opus-5*`,
+                `arn:aws:bedrock:eu-west-3::foundation-model/anthropic.claude-opus-5*`,
+                `arn:aws:bedrock:eu-central-1::foundation-model/anthropic.claude-opus-5*`,
+                `arn:aws:bedrock:eu-central-2::foundation-model/anthropic.claude-opus-5*`,
+                `arn:aws:bedrock:eu-north-1::foundation-model/anthropic.claude-opus-5*`,
+                `arn:aws:bedrock:eu-south-1::foundation-model/anthropic.claude-opus-5*`,
+                `arn:aws:bedrock:eu-south-2::foundation-model/anthropic.claude-opus-5*`,
             ],
         }));
 

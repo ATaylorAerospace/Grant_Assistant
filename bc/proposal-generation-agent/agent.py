@@ -94,8 +94,8 @@ print(f"[Proposal Agent] ✅ AWS_REGION: {AWS_REGION}")
 
 # Select inference profile based on region and model tier
 # eu-west-1 uses EU cross-region profile; all US regions use US cross-region profile
-# Opus 4.6: 200K context, better for large EU grant proposals (no :0 suffix)
-# Sonnet 4.5: 200K context, faster/cheaper for smaller proposals
+# Opus 5: 1M context, adaptive thinking on by default; best for large EU grant proposals
+# Sonnet 5: near-Opus quality at Sonnet cost; faster/cheaper for smaller proposals
 # PROPOSAL_MODEL_TIER env var is set by the initiator Lambda from backend.ts
 # Default to 'opus' — can be changed in backend.ts without touching agent code
 # NOTE: This is the startup default. The actual value is re-evaluated per invocation
@@ -107,11 +107,25 @@ if AWS_REGION.startswith('eu-'):
 else:
     _REGION_PREFIX = 'us'
 
-if _MODEL_TIER == 'sonnet':
-    CLAUDE_MODEL_ID = f'{_REGION_PREFIX}.anthropic.claude-sonnet-4-6-v1'
-else:
-    # opus (default)
-    CLAUDE_MODEL_ID = f'{_REGION_PREFIX}.anthropic.claude-opus-4-6-v1'
+# Model IDs use the cross-region inference-profile form this deployment already
+# runs on (deployed logs show e.g. us.anthropic.claude-opus-4-6-v1). Confirm the
+# exact Opus 5 / Sonnet 5 profile IDs exposed in your account with
+#   aws bedrock list-inference-profiles --region <region>
+# and set CLAUDE_MODEL_ID to override these defaults if they differ.
+OPUS_MODEL_ID_TEMPLATE = '{prefix}.anthropic.claude-opus-5-v1'
+SONNET_MODEL_ID_TEMPLATE = '{prefix}.anthropic.claude-sonnet-5-v1'
+
+
+def _select_model_id(tier: str, prefix: str) -> str:
+    """CLAUDE_MODEL_ID env override wins; otherwise pick by tier and region prefix."""
+    override = os.environ.get('CLAUDE_MODEL_ID')
+    if override:
+        return override
+    template = SONNET_MODEL_ID_TEMPLATE if tier == 'sonnet' else OPUS_MODEL_ID_TEMPLATE
+    return template.format(prefix=prefix)
+
+
+CLAUDE_MODEL_ID = _select_model_id(_MODEL_TIER, _REGION_PREFIX)
 print(f"[Proposal Agent] ✅ CLAUDE_MODEL_ID: {CLAUDE_MODEL_ID}")
 
 print("[Proposal Agent] STEP 6: Creating boto3 config...")
@@ -208,10 +222,7 @@ def invoke(payload):
         global CLAUDE_MODEL_ID
         _tier = os.environ.get('PROPOSAL_MODEL_TIER', 'opus')
         _prefix = 'eu' if AWS_REGION.startswith('eu-') else 'us'
-        if _tier == 'sonnet':
-            CLAUDE_MODEL_ID = f'{_prefix}.anthropic.claude-sonnet-4-6-v1'
-        else:
-            CLAUDE_MODEL_ID = f'{_prefix}.anthropic.claude-opus-4-6-v1'
+        CLAUDE_MODEL_ID = _select_model_id(_tier, _prefix)
         print(f"[Proposal Agent] 🤖 Model: {CLAUDE_MODEL_ID} (tier={_tier})", flush=True)
         logger.info(f"[Proposal Agent] Model selected: {CLAUDE_MODEL_ID}")
         
@@ -1394,7 +1405,7 @@ def prepare_prompts(prompts: Dict[str, Dict], grant_data: Dict, kb_context: Dict
     MAX_INPUT_TOKENS = 190000
     MAX_OUTPUT_TOKENS = 32000
     SAFETY_BUFFER = 5000
-    CHARS_PER_TOKEN = 3  # conservative: EU text tokenizes denser than 4 chars/token
+    CHARS_PER_TOKEN = 3  # Opus 5 / Sonnet 5 tokenizer yields ~30% more tokens than 4.6 (~3 chars/token); EU text denser still
 
     # Build grant_info string
     grant_info_parts = [
@@ -1518,8 +1529,10 @@ def generate_section_with_claude(prompt: str, section_name: str, max_retries: in
 
     body = {
         'anthropic_version': 'bedrock-2023-05-31',
+        # No sampling parameters: Opus 5 / Sonnet 5 reject temperature/top_p/top_k
+        # with a 400. Adaptive thinking is on by default and counts toward
+        # max_tokens; 32k leaves ample room for thinking plus a full section.
         'max_tokens': 32000,
-        'temperature': 0.3,
         'messages': [{'role': 'user', 'content': prompt}],
     }
     if shared_context:
