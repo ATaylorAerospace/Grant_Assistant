@@ -155,7 +155,7 @@ IAM policies for each function are scoped to the specific inference-profile and 
 
 **Prompt caching:** the proposal generator sends the researcher documents + grant information (identical for every section of a proposal) as a cached system block, so Bedrock serves that context from the prompt cache on every section after the first. Confirm it is working via the `cache_read=` figure in the agent's `Usage for '<section>'` log lines — a value of `0` on later sections means the cache is not being hit.
 
-#### Upgrading to a newer Claude generation
+### ⬆️ Upgrading to a Newer Claude Generation
 
 Model IDs are configuration, not call-site literals, so an upgrade is a config change plus an IAM update. Because this app runs on **Bedrock**, do **not** copy model IDs from Anthropic's first-party docs — take them from your account:
 
@@ -439,11 +439,33 @@ git pull
 
 CDK diffs the stack and only rebuilds what changed. The seeder is skipped on updates — to rebuild the React UI or re-run seeding, manually trigger the `grow2-seeder-{account}-{region}` CodeBuild project. See the [Updating Guide](install_docs/maintenance/UPDATING.md).
 
+### Runtime Configuration
+
+The LLM call sites read their model and limits from environment variables, so tuning them — or upgrading the model — is a configuration change rather than a code edit:
+
+| Variable | Component | Default | Purpose |
+|----------|-----------|---------|---------|
+| `PROPOSAL_MODEL_TIER` | Proposal Generation agent | `opus` | `opus` or `sonnet` — selects the region-aware inference profile used to draft sections |
+| `CLAUDE_MODEL_ID` | Proposal Evaluator agent | `us.`/`eu.` `anthropic.claude-opus-4-6-v1` | Model used to score guideline adherence (see *Upgrading to a Newer Claude Generation* above) |
+| `EVAL_MAX_TOKENS` | Proposal Evaluator agent | `8000` | Output cap for the structured evaluation JSON — a `max_tokens` stop is logged as truncation instead of failing silently |
+| `MAX_EVAL_CHARS` | Proposal Evaluator agent | `300000` | Plain-text cap on the proposal sent for evaluation; the whole proposal is graded, and any truncation is logged |
+| `CHAT_MAX_TOKENS` | Chat Handler | `4000` | Reply length cap for the AI chat assistant |
+| `SEED_TEST_USER_PASSWORD` | Post-deploy seeder | *(random, unusable)* | Optional known password for `test_user@example.com` — see Step 4 of the Quick Start |
+
+All Bedrock clients use the SDK's **adaptive retry** mode, so throttling is retried with client-side rate limiting rather than surfaced to the user as an error.
+
 ### Monitoring & Logs
 
 Monitor your deployment via CloudWatch — Lambda functions, AgentCore agents, AppSync API, and performance metrics. See the [Monitoring Guide](install_docs/maintenance/MONITORING.md).
 
 AgentCore agents write structured logs to CloudWatch under `/aws/bedrock-agentcore/runtimes/*`. See [How to Read Agent Logs](install_docs/logging/HOW-TO-READ-AGENT-LOGS.md) for which log groups map to which agents and how to find a specific invocation.
+
+**What to look for in the logs:**
+- `Usage for '<section>': … cache_read=<n>` — the prompt-cache hit for that section. A `0` on the second and later sections means the shared researcher/grant context is not being cached.
+- `hit max_tokens` — the output was truncated; raise the relevant cap in *Runtime Configuration* above.
+- `Transient error <Code>` or `Transient stream error`, followed by `Retry n/2` — a Bedrock throttle or mid-stream error was retried automatically. Only a final `failed … after 3 attempts` is a real failure.
+- `refused` — the model declined the request (`stop_reason: refusal`); the section or reply is reported rather than silently returned empty.
+- `Error calling Claude (<ExceptionType>)` in the evaluator — the detailed analysis failed and the heuristic fallback (grade `C+`, "Manual review recommended") was used; the exception type says why.
 
 **Bayesian matching:** see [How Bayesian Matching Works](install_docs/reference/HOW_BAYESIAN_MATCHING_WORKS.md) for how grant relevance scores are calculated and how the system learns from feedback.
 
