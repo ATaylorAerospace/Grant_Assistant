@@ -83,15 +83,20 @@ logger.info(f"[Proposal Evaluator] Using AWS region: {AWS_REGION}")
 print(f"[Proposal Evaluator] Using AWS region: {AWS_REGION}", flush=True)
 
 # Model is configured, not hardcoded at the call site, so upgrading it is a
-# config change (matches the proposal-generation agent).
+# config change (matches the proposal-generation agent). The default uses the
+# cross-region inference-profile form this deployment already runs on; confirm
+# the exact Opus 5 profile ID in your account with
+#   aws bedrock list-inference-profiles --region <region>
+# and set CLAUDE_MODEL_ID if it differs.
 _REGION_PREFIX = 'eu' if AWS_REGION.startswith('eu-') else 'us'
-CLAUDE_MODEL_ID = os.environ.get('CLAUDE_MODEL_ID', f'{_REGION_PREFIX}.anthropic.claude-opus-4-6-v1')
+CLAUDE_MODEL_ID = os.environ.get('CLAUDE_MODEL_ID', f'{_REGION_PREFIX}.anthropic.claude-opus-5-v1')
 # Evaluate the whole proposal, not the first 10k chars of HTML. ~300k chars of
 # plain text is well inside the model's context and covers any full proposal.
 MAX_EVAL_CHARS = int(os.environ.get('MAX_EVAL_CHARS', '300000'))
 # Structured JSON with per-criterion evidence overran the previous 2000-token
 # cap, truncating the JSON so parsing failed and the heuristic fallback ran.
-EVAL_MAX_TOKENS = int(os.environ.get('EVAL_MAX_TOKENS', '8000'))
+# Opus 5 thinks by default and thinking counts toward max_tokens, so leave headroom.
+EVAL_MAX_TOKENS = int(os.environ.get('EVAL_MAX_TOKENS', '16000'))
 print(f"[Proposal Evaluator] ✅ CLAUDE_MODEL_ID: {CLAUDE_MODEL_ID}", flush=True)
 
 try:
