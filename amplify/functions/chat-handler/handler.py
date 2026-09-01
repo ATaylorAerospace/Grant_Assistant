@@ -1,5 +1,6 @@
 import json
 import boto3
+from botocore.config import Config
 import uuid
 from datetime import datetime
 import os
@@ -7,7 +8,9 @@ from typing import Dict, Any, List
 
 # AWS clients
 dynamodb = boto3.resource('dynamodb')
-bedrock = boto3.client('bedrock-runtime')
+# Adaptive retries: Bedrock throttles under load, and one ThrottlingException
+# should not fail a user's chat turn.
+bedrock = boto3.client('bedrock-runtime', config=Config(retries={'max_attempts': 5, 'mode': 'adaptive'}))
 appsync = boto3.client('appsync')
 s3 = boto3.client('s3')
 
@@ -15,6 +18,10 @@ s3 = boto3.client('s3')
 # eu-west-1 uses EU cross-region profile; all US regions use US cross-region profile
 _region = os.environ.get('AWS_REGION', 'us-east-1')
 CLAUDE_MODEL_ID = 'eu.anthropic.claude-sonnet-4-6-v1' if _region.startswith('eu-') else 'us.anthropic.claude-sonnet-4-6-v1'
+
+# Reply length cap. 1000 tokens cut answers off mid-sentence; 4000 is still small
+# for a non-streaming call and can be tuned per deployment.
+CHAT_MAX_TOKENS = int(os.environ.get('CHAT_MAX_TOKENS', '4000'))
 
 # Environment variables - All required, no fallbacks
 CHAT_SESSIONS_TABLE = os.environ['CHAT_SESSIONS_TABLE']
@@ -322,16 +329,28 @@ Focus on empowering users to leverage the platform's AI-powered capabilities rat
             modelId=CLAUDE_MODEL_ID,
             body=json.dumps({
                 "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 1000,
+                "max_tokens": CHAT_MAX_TOKENS,
                 "system": system_prompt,
                 "messages": conversation
             })
         )
-        
+
         print("📥 Parsing Bedrock response...")
         response_body = json.loads(response['body'].read())
-        
-        content = response_body['content'][0]['text']
+
+        # Check why the model stopped before trusting the content.
+        stop_reason = response_body.get('stop_reason')
+        if stop_reason == 'refusal':
+            print(f"🛑 Model refused the request: {response_body.get('stop_details')}")
+            return "I can't help with that request. Please ask something about research grants or the platform."
+        if stop_reason == 'max_tokens':
+            print(f"⚠️ Response hit max_tokens={CHAT_MAX_TOKENS}; reply may be cut off")
+
+        # First text block — content[0] is not guaranteed to be text.
+        content = next(
+            (block.get('text', '') for block in response_body.get('content', []) if block.get('type') == 'text'),
+            ''
+        )
         print(f"✅ Claude response: {len(content)} characters")
         print(f"🗣️ Claude full response: {content}")
         return content

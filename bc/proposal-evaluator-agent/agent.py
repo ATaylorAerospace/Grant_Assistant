@@ -20,6 +20,7 @@ print("", flush=True)
 print("[Proposal Evaluator] STEP 2: Importing standard library modules...", flush=True)
 import json
 import logging
+import re
 from datetime import datetime
 from uuid import uuid4
 print("[Proposal Evaluator] ✅ Standard library imports successful", flush=True)
@@ -32,18 +33,6 @@ try:
     print(f"[Proposal Evaluator] ✅ boto3 imported successfully (version: {boto3.__version__})", flush=True)
 except Exception as e:
     print(f"[Proposal Evaluator] ❌ Failed to import boto3: {e}", flush=True)
-    raise
-print("", flush=True)
-
-# STEP 4: Import anthropic
-print("[Proposal Evaluator] STEP 4: Importing anthropic...", flush=True)
-try:
-    import anthropic
-    print(f"[Proposal Evaluator] ✅ anthropic imported successfully (version: {anthropic.__version__})", flush=True)
-except Exception as e:
-    print(f"[Proposal Evaluator] ❌ Failed to import anthropic: {e}", flush=True)
-    import traceback
-    traceback.print_exc()
     raise
 print("", flush=True)
 
@@ -93,8 +82,26 @@ AWS_REGION = os.environ.get('AWS_REGION', 'us-east-2')
 logger.info(f"[Proposal Evaluator] Using AWS region: {AWS_REGION}")
 print(f"[Proposal Evaluator] Using AWS region: {AWS_REGION}", flush=True)
 
+# Model is configured, not hardcoded at the call site, so upgrading it is a
+# config change (matches the proposal-generation agent).
+_REGION_PREFIX = 'eu' if AWS_REGION.startswith('eu-') else 'us'
+CLAUDE_MODEL_ID = os.environ.get('CLAUDE_MODEL_ID', f'{_REGION_PREFIX}.anthropic.claude-opus-4-6-v1')
+# Evaluate the whole proposal, not the first 10k chars of HTML. ~300k chars of
+# plain text is well inside the model's context and covers any full proposal.
+MAX_EVAL_CHARS = int(os.environ.get('MAX_EVAL_CHARS', '300000'))
+# Structured JSON with per-criterion evidence overran the previous 2000-token
+# cap, truncating the JSON so parsing failed and the heuristic fallback ran.
+EVAL_MAX_TOKENS = int(os.environ.get('EVAL_MAX_TOKENS', '8000'))
+print(f"[Proposal Evaluator] ✅ CLAUDE_MODEL_ID: {CLAUDE_MODEL_ID}", flush=True)
+
 try:
-    bedrock_runtime = boto3.client('bedrock-runtime', region_name=AWS_REGION)
+    from botocore.config import Config
+    bedrock_runtime = boto3.client(
+        'bedrock-runtime',
+        region_name=AWS_REGION,
+        # Adaptive retries absorb Bedrock throttling instead of failing the evaluation.
+        config=Config(retries={'max_attempts': 5, 'mode': 'adaptive'}),
+    )
     logger.info("[Proposal Evaluator] ✅ Bedrock Runtime client initialized")
     print("[Proposal Evaluator] ✅ Bedrock Runtime client initialized", flush=True)
 except Exception as e:
@@ -305,26 +312,55 @@ def evaluate_content_quality(content_quality: dict) -> dict:
     }
 
 
+def _html_to_text(html: str) -> str:
+    """Collapse proposal HTML to plain text so the evaluator grades content, not markup."""
+    text = re.sub(r'<(script|style)[^>]*>.*?</\1>', ' ', html, flags=re.S | re.I)
+    text = re.sub(r'<br\s*/?>|</p>|</div>|</h[1-6]>|</li>', '\n', text, flags=re.I)
+    text = re.sub(r'<[^>]+>', ' ', text)
+    text = re.sub(r'[ \t]+', ' ', text)
+    text = re.sub(r'\n\s*\n+', '\n\n', text)
+    return text.strip()
+
+
+def _first_text_block(response_body: dict) -> str:
+    """Return the first text block; content[0] is not guaranteed to be text."""
+    for block in response_body.get('content', []):
+        if block.get('type') == 'text':
+            return block.get('text', '')
+    return ''
+
+
 def evaluate_guideline_adherence(proposal_content: dict, prompt: dict, bedrock_client) -> dict:
     """
     Evaluate how well proposal follows grant guidelines (40% weight)
     Uses Claude to analyze against success criteria
     """
     logger.info("[Proposal Evaluator] Analyzing guideline adherence with Claude...")
-    
+
     # Extract proposal HTML and prompt content
     html = proposal_content.get('html', '')
     prompt_content = prompt.get('content', '')
     success_criteria = prompt.get('successCriteria', [])
-    
+
+    # Grade the whole proposal as text. Previously only html[:10000] (the first
+    # ~2 pages of raw markup) was sent, so most of every proposal was never
+    # evaluated. Truncation is now large, applied to plain text, and logged.
+    proposal_text = _html_to_text(html) if html else ''
+    if len(proposal_text) > MAX_EVAL_CHARS:
+        logger.warning(
+            f"[Proposal Evaluator] ⚠️ Proposal text is {len(proposal_text):,} chars; truncating to "
+            f"{MAX_EVAL_CHARS:,} for evaluation — results cover the proposal only partially"
+        )
+        proposal_text = proposal_text[:MAX_EVAL_CHARS] + "\n...[proposal truncated for evaluation]"
+
     # Build evaluation prompt for Claude
     evaluation_prompt = f"""You are evaluating a grant proposal against specific guidelines.
 
 GRANT GUIDELINES AND SUCCESS CRITERIA:
 {prompt_content}
 
-PROPOSAL CONTENT (HTML):
-{html[:10000]}  
+PROPOSAL CONTENT:
+{proposal_text}
 
 Analyze how well the proposal addresses each success criterion. For each criterion:
 1. Is it addressed? (yes/no)
@@ -353,34 +389,46 @@ Be critical but fair. Focus on what's actually in the proposal."""
     try:
         # Call Claude via Bedrock
         response = bedrock_client.invoke_model(
-            modelId=f'{"eu" if AWS_REGION.startswith("eu-") else "us"}.anthropic.claude-opus-4-6-v1',
+            modelId=CLAUDE_MODEL_ID,
             body=json.dumps({
                 "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 2000,
+                "max_tokens": EVAL_MAX_TOKENS,
                 "messages": [{
                     "role": "user",
                     "content": evaluation_prompt
                 }]
             })
         )
-        
+
         response_body = json.loads(response['body'].read())
-        claude_response = response_body['content'][0]['text']
-        
+
+        # Check why the model stopped before trusting the content.
+        stop_reason = response_body.get('stop_reason')
+        if stop_reason == 'refusal':
+            raise RuntimeError(
+                f"model refused the evaluation request (stop_details={response_body.get('stop_details')})"
+            )
+        if stop_reason == 'max_tokens':
+            logger.warning(
+                f"[Proposal Evaluator] ⚠️ Response hit max_tokens={EVAL_MAX_TOKENS}; JSON is likely truncated"
+            )
+
+        claude_response = _first_text_block(response_body)
+
         # Parse Claude's JSON response
         # Extract JSON from markdown code blocks if present
         if '```json' in claude_response:
             claude_response = claude_response.split('```json')[1].split('```')[0].strip()
         elif '```' in claude_response:
             claude_response = claude_response.split('```')[1].split('```')[0].strip()
-        
+
         analysis = json.loads(claude_response)
-        
+
         score = analysis.get('overallScore', 0.70)
         weight = 0.40
         weighted_score = score * weight
         grade = calculate_grade(score)
-        
+
         return {
             "score": score,
             "weight": weight,
@@ -393,9 +441,10 @@ Be critical but fair. Focus on what's actually in the proposal."""
             "recommendations": analysis.get('recommendations', []),
             "redFlags": analysis.get('redFlags', [])
         }
-        
+
     except Exception as e:
-        logger.error(f"[Proposal Evaluator] Error calling Claude: {e}")
+        # Log the concrete cause; the fallback below used to hide truncation/refusals.
+        logger.error(f"[Proposal Evaluator] Error calling Claude ({type(e).__name__}): {e}")
         # Fallback to simple heuristic
         return {
             "score": 0.70,

@@ -153,6 +153,19 @@ GROW2 standardizes on the latest Claude models with **region-aware cross-region 
 
 IAM policies for each function are scoped to the specific inference-profile and foundation-model ARNs the function actually invokes.
 
+**Prompt caching:** the proposal generator sends the researcher documents + grant information (identical for every section of a proposal) as a cached system block, so Bedrock serves that context from the prompt cache on every section after the first. Confirm it is working via the `cache_read=` figure in the agent's `Usage for '<section>'` log lines — a value of `0` on later sections means the cache is not being hit.
+
+#### Upgrading to a newer Claude generation
+
+Model IDs are configuration, not call-site literals, so an upgrade is a config change plus an IAM update. Because this app runs on **Bedrock**, do **not** copy model IDs from Anthropic's first-party docs — take them from your account:
+
+1. **Get the exact inference-profile ID** for your region: `aws bedrock list-inference-profiles --region <region>` and enable model access in the Bedrock console.
+2. **Update the IAM allowlists** in `amplify/backend.ts` and `amplify/custom/agentcore-stack.ts` — they enumerate the exact foundation-model and inference-profile ARNs per region.
+3. **Point the callers at the new ID**: `CLAUDE_MODEL_ID` on the evaluator agent, the tier defaults in `bc/proposal-generation-agent/agent.py`, and `CLAUDE_MODEL_ID` in `amplify/functions/chat-handler/handler.py`.
+4. **Remove `temperature`** from the proposal generator's request body — Claude Opus 4.7 and later reject sampling parameters with a 400.
+5. **Re-baseline token budgets** — Opus 4.7+ uses a different tokenizer (≈1–1.35× more tokens). Revisit `CHARS_PER_TOKEN` / `MAX_INPUT_TOKENS` in the generator and the `168000` budget in `react-aws/src/components/Proposals/`.
+6. **Deploy-test** grant search, proposal generation, and evaluation in a non-production stack before promoting.
+
 * * *
 
 ## 🚀 Quick Start Deployment
