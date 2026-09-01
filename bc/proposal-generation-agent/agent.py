@@ -52,7 +52,7 @@ print("[Proposal Agent] ✅ time imported")
 from datetime import datetime, timedelta
 print("[Proposal Agent] ✅ datetime imported")
 
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple
 print("[Proposal Agent] ✅ typing imported")
 
 from decimal import Decimal
@@ -63,6 +63,7 @@ from bedrock_agentcore.runtime import BedrockAgentCoreApp
 print("[Proposal Agent] ✅ bedrock-agentcore SDK imported")
 
 from botocore.config import Config
+from botocore.exceptions import ClientError
 print("[Proposal Agent] ✅ botocore.config imported")
 
 print("[Proposal Agent] STEP 3: Configuring logging...")
@@ -118,7 +119,9 @@ print("[Proposal Agent] STEP 6: Creating boto3 config...")
 bedrock_config = Config(
     read_timeout=60,   # 1 minute - streaming keeps connection alive
     connect_timeout=10,
-    retries={'max_attempts': 2}
+    # Adaptive mode retries throttling/transient errors with client-side rate
+    # limiting, so the SDK absorbs Bedrock capacity blips before our own loop.
+    retries={'max_attempts': 5, 'mode': 'adaptive'}
 )
 print("[Proposal Agent] ✅ boto3 config created")
 
@@ -317,7 +320,7 @@ def invoke(payload):
                 logger.info(f"[Proposal Agent] Found {len(prompts)} prompt(s) for {agency}")
                 
                 # Prepare prompts with actual data
-                prepared_prompts = prepare_prompts(prompts, grant_info, kb_context, agency)
+                prepared_prompts, shared_context = prepare_prompts(prompts, grant_info, kb_context, agency)
                 logger.info(f"[Proposal Agent] Prepared {len(prepared_prompts)} prompt(s)")
                 
                 # ============================================================
@@ -342,7 +345,14 @@ def invoke(payload):
                     })
                     
                     # Generate this section with Claude
-                    section_content = generate_section_with_claude(prompt, section_name)
+                    # Send the byte-identical shared preamble as a cached system block and
+                    # only the per-section instruction as the user message. The full string
+                    # in `prepared_prompts` is unchanged (it is what gets saved to S3).
+                    if shared_context and prompt.startswith(shared_context):
+                        section_content = generate_section_with_claude(
+                            prompt[len(shared_context):], section_name, shared_context=shared_context)
+                    else:
+                        section_content = generate_section_with_claude(prompt, section_name)
                     
                     sections[section_name] = {
                         'title': section_name.replace('_', ' ').title(),
@@ -1357,7 +1367,7 @@ Write a clear, concise abstract that:
 
 Keep it under 250 words."""
 
-def prepare_prompts(prompts: Dict[str, Dict], grant_data: Dict, kb_context: Dict, agency: str) -> Dict[str, str]:
+def prepare_prompts(prompts: Dict[str, Dict], grant_data: Dict, kb_context: Dict, agency: str) -> Tuple[Dict[str, str], str]:
     """Substitute variables in prompt templates with actual content.
 
     Uses Version B preamble architecture: inject RESEARCHER CONTENT and GRANT INFORMATION
@@ -1368,6 +1378,15 @@ def prepare_prompts(prompts: Dict[str, Dict], grant_data: Dict, kb_context: Dict
     occurrence of {{content}} (which can appear 10-44 times per template).
     Result: content is injected exactly once regardless of template reference count,
     and transformer attention is not diluted by repeated identical blocks.
+
+    Returns (prepared, shared_context):
+      - prepared: section -> full prompt string (shared_context + instruction body).
+        This map is persisted to S3 and read by the evaluator, so its shape is unchanged.
+      - shared_context: the preamble (researcher content + grant info). It is sized
+        ONCE against the largest instruction so it is byte-identical for every
+        section — that is what lets Bedrock serve it from the prompt cache on every
+        section after the first. (Per-section trimming produced a different prefix
+        for each section and silently defeated caching.)
     """
     logger.info(f"[Proposal Agent] Preparing prompts with grant data (preamble architecture)")
 
@@ -1376,8 +1395,6 @@ def prepare_prompts(prompts: Dict[str, Dict], grant_data: Dict, kb_context: Dict
     MAX_OUTPUT_TOKENS = 32000
     SAFETY_BUFFER = 5000
     CHARS_PER_TOKEN = 3  # conservative: EU text tokenizes denser than 4 chars/token
-
-    prepared = {}
 
     # Build grant_info string
     grant_info_parts = [
@@ -1404,70 +1421,114 @@ def prepare_prompts(prompts: Dict[str, Dict], grant_data: Dict, kb_context: Dict
     else:
         full_user_documents = "No specific user documents provided."
 
+    # Pass 1: build every section's instruction body (no content injected here).
+    instruction_bodies: Dict[str, str] = {}
     for section, prompt_data in prompts.items():
         template = prompt_data['template']
-
-        # Step 1: Replace all {{content}} and {{grant_info}} in the instruction body
-        # with their label names (no actual content injected here)
         instruction_body = template.replace('{{content}}', 'RESEARCHER CONTENT')
         instruction_body = instruction_body.replace('{{grant_info}}', 'GRANT INFORMATION')
         # Also handle any other simple substitutions
         instruction_body = instruction_body.replace('{{grant_title}}', grant_data.get('title', 'Untitled'))
         instruction_body = instruction_body.replace('{{grant_description}}', grant_data.get('description', ''))
         instruction_body = instruction_body.replace('{{agency}}', agency)
+        instruction_bodies[section] = instruction_body
 
-        # Step 2: Calculate token budget for the preamble content
-        instruction_chars = len(instruction_body)
-        grant_info_chars = len(grant_info)
-        preamble_overhead_chars = 200  # labels + separators
-        instruction_tokens = (instruction_chars + grant_info_chars + preamble_overhead_chars) // CHARS_PER_TOKEN
-        available_tokens = MAX_INPUT_TOKENS - SAFETY_BUFFER - MAX_OUTPUT_TOKENS - instruction_tokens
-        available_chars = available_tokens * CHARS_PER_TOKEN
+    # Pass 2: size the shared preamble ONCE against the largest instruction, so the
+    # same preamble fits every section's budget and stays byte-identical.
+    preamble_overhead_chars = 200  # labels + separators
+    largest_instruction_chars = max((len(b) for b in instruction_bodies.values()), default=0)
+    instruction_tokens = (largest_instruction_chars + len(grant_info) + preamble_overhead_chars) // CHARS_PER_TOKEN
+    available_tokens = MAX_INPUT_TOKENS - SAFETY_BUFFER - MAX_OUTPUT_TOKENS - instruction_tokens
+    available_chars = available_tokens * CHARS_PER_TOKEN
 
-        logger.info(f"[Proposal Agent] Section '{section}': instruction={instruction_tokens:,} tokens, "
-                    f"available for researcher content={available_tokens:,} tokens ({available_chars:,} chars)")
+    logger.info(f"[Proposal Agent] Shared preamble budget: largest instruction={instruction_tokens:,} tokens, "
+                f"available for researcher content={available_tokens:,} tokens ({available_chars:,} chars)")
 
-        # Step 3: Trim researcher content to fit budget
-        if available_chars <= 0:
-            logger.warning(f"[Proposal Agent] ⚠️  Template+grant_info alone near/over limit for '{section}' "
-                           f"({instruction_tokens:,} tokens). Using minimal content placeholder.")
-            researcher_content = "[Content omitted: prompt template exceeds token budget]"
-        elif len(full_user_documents) > available_chars:
-            logger.warning(f"[Proposal Agent] ✂️  Trimming researcher content from {len(full_user_documents):,} "
-                           f"to {available_chars:,} chars for section '{section}'")
-            researcher_content = full_user_documents[:available_chars] + "\n...[content trimmed to fit token limit]"
-        else:
-            researcher_content = full_user_documents
+    if available_chars <= 0:
+        logger.warning(f"[Proposal Agent] ⚠️  Template+grant_info alone near/over limit "
+                       f"({instruction_tokens:,} tokens). Using minimal content placeholder.")
+        researcher_content = "[Content omitted: prompt template exceeds token budget]"
+    elif len(full_user_documents) > available_chars:
+        logger.warning(f"[Proposal Agent] ✂️  Trimming researcher content from {len(full_user_documents):,} "
+                       f"to {available_chars:,} chars (shared across all sections)")
+        researcher_content = full_user_documents[:available_chars] + "\n...[content trimmed to fit token limit]"
+    else:
+        researcher_content = full_user_documents
 
-        # Step 4: Build final prompt — preamble first, then instructions
-        preamble = (
-            f"RESEARCHER CONTENT (your primary source — refer to this throughout):\n"
-            f"---\n"
-            f"{researcher_content}\n"
-            f"---\n\n"
-            f"GRANT INFORMATION:\n"
-            f"---\n"
-            f"{grant_info}\n"
-            f"---\n\n"
-        )
-        final_prompt = preamble + instruction_body
+    shared_context = (
+        f"RESEARCHER CONTENT (your primary source — refer to this throughout):\n"
+        f"---\n"
+        f"{researcher_content}\n"
+        f"---\n\n"
+        f"GRANT INFORMATION:\n"
+        f"---\n"
+        f"{grant_info}\n"
+        f"---\n\n"
+    )
 
+    # Pass 3: assemble full prompts — shared preamble first, then instructions.
+    prepared: Dict[str, str] = {}
+    for section, instruction_body in instruction_bodies.items():
+        final_prompt = shared_context + instruction_body
         prepared[section] = final_prompt
         final_tokens = len(final_prompt) // CHARS_PER_TOKEN
         logger.info(f"[Proposal Agent] ✅ Prepared prompt for '{section}': ~{final_tokens:,} tokens total "
-                    f"(content injected once, {template.count('{{content}}')}x {{content}} refs replaced with label)")
+                    f"(content injected once, {prompts[section]['template'].count('{{content}}')}x {{content}} refs replaced with label)")
 
-    return prepared
+    return prepared, shared_context
 
-def generate_section_with_claude(prompt: str, section_name: str, max_retries: int = 3) -> str:
+# Bedrock error codes that are safe to retry (capacity / transient failures).
+_TRANSIENT_BEDROCK_ERRORS = {
+    'ThrottlingException', 'throttlingException',
+    'ServiceUnavailableException', 'serviceUnavailableException',
+    'InternalServerException', 'internalServerException',
+    'ModelTimeoutException', 'modelTimeoutException',
+    'ModelStreamErrorException', 'modelStreamErrorException',
+    'ModelNotReadyException', 'modelNotReadyException',
+}
+
+# Error events Bedrock can deliver *inside* the response stream (instead of raising).
+_TRANSIENT_STREAM_EVENTS = (
+    'internalServerException', 'modelStreamErrorException', 'throttlingException',
+    'serviceUnavailableException', 'modelTimeoutException',
+)
+
+
+class _TransientStreamError(Exception):
+    """A transient Bedrock error surfaced as an event inside the response stream."""
+
+
+def generate_section_with_claude(prompt: str, section_name: str, max_retries: int = 3,
+                                 shared_context: str = None) -> str:
     """Call Bedrock Claude with STREAMING to generate one section.
-    
-    Retries up to max_retries times on transient internalServerException errors
-    using exponential backoff (5s, 10s, 20s).
+
+    `shared_context` (researcher content + grant info, identical for every section
+    of a proposal) is sent as a system block with an explicit cache_control
+    breakpoint, so Bedrock serves it from the prompt cache on every section after
+    the first instead of re-billing the full context per section. The legacy
+    Bedrock integration requires explicit breakpoints (top-level cache_control is
+    rejected there).
+
+    Retries transient Bedrock errors — both those raised by the SDK and those
+    delivered as error events inside the stream — with exponential backoff
+    (5s, 10s, 20s). Non-transient errors (validation, refusal) fail immediately.
     """
     print(f"[Proposal Agent] 🤖 invoke_model_with_response_stream → {CLAUDE_MODEL_ID} for '{section_name}'", flush=True)
     logger.info(f"[Proposal Agent] Generating section: {section_name}")
-    
+
+    body = {
+        'anthropic_version': 'bedrock-2023-05-31',
+        'max_tokens': 32000,
+        'temperature': 0.3,
+        'messages': [{'role': 'user', 'content': prompt}],
+    }
+    if shared_context:
+        body['system'] = [{
+            'type': 'text',
+            'text': shared_context,
+            'cache_control': {'type': 'ephemeral'},
+        }]
+
     last_exception = None
     for attempt in range(max_retries):
         if attempt > 0:
@@ -1479,50 +1540,78 @@ def generate_section_with_claude(prompt: str, section_name: str, max_retries: in
         try:
             response = bedrock_runtime.invoke_model_with_response_stream(
                 modelId=CLAUDE_MODEL_ID,
-                body=json.dumps({
-                    'anthropic_version': 'bedrock-2023-05-31',
-                    'max_tokens': 32000,
-                    'temperature': 0.3,
-                    'messages': [
-                        {
-                            'role': 'user',
-                            'content': prompt
-                        }
-                    ]
-                })
+                body=json.dumps(body),
             )
-            
-            # Collect streamed response
+
             content = ""
+            stop_reason = None
             stream = response.get('body')
-            
+
             if stream:
                 for event in stream:
                     chunk = event.get('chunk')
                     if chunk:
                         chunk_data = json.loads(chunk.get('bytes').decode())
-                        
-                        if chunk_data['type'] == 'content_block_delta':
+                        ctype = chunk_data.get('type')
+
+                        if ctype == 'content_block_delta':
                             delta = chunk_data.get('delta', {})
                             if delta.get('type') == 'text_delta':
-                                text = delta.get('text', '')
-                                content += text
-            
+                                content += delta.get('text', '')
+                        elif ctype == 'message_start':
+                            # Surface cache effectiveness so it can be verified in the logs.
+                            usage = chunk_data.get('message', {}).get('usage', {})
+                            logger.info(
+                                f"[Proposal Agent] Usage for '{section_name}': "
+                                f"input={usage.get('input_tokens', 0):,} "
+                                f"cache_read={usage.get('cache_read_input_tokens', 0):,} "
+                                f"cache_write={usage.get('cache_creation_input_tokens', 0):,}"
+                            )
+                        elif ctype == 'message_delta':
+                            stop_reason = chunk_data.get('delta', {}).get('stop_reason', stop_reason)
+                        continue
+
+                    # No chunk: this is either a stream error event or bookkeeping.
+                    # Previously these were ignored, so a mid-stream throttle returned
+                    # a silently truncated section as if it had succeeded.
+                    for err_key in _TRANSIENT_STREAM_EVENTS:
+                        if err_key in event:
+                            raise _TransientStreamError(f"{err_key}: {event[err_key]}")
+                    if 'validationException' in event:
+                        raise ValueError(f"validationException: {event['validationException']}")
+
+            if stop_reason == 'refusal':
+                raise RuntimeError(f"Model refused to generate section '{section_name}'")
+            if stop_reason == 'max_tokens':
+                print(f"[Proposal Agent] ⚠️ Section '{section_name}' hit max_tokens and was truncated", flush=True)
+                logger.warning(f"[Proposal Agent] Section {section_name} truncated at max_tokens")
+
             word_count = len(content.split())
             print(f"[Proposal Agent] ✅ Claude returned {word_count} words for '{section_name}'", flush=True)
             logger.info(f"[Proposal Agent] ✅ Generated {word_count} words for {section_name}")
-            
+
             return content
 
-        except Exception as e:
+        except _TransientStreamError as e:
             last_exception = e
-            error_str = str(e)
-            # Only retry on transient Bedrock errors
-            if 'internalServerException' in error_str or 'throttlingException' in error_str or 'serviceUnavailableException' in error_str:
-                print(f"[Proposal Agent] ⚠️ Transient error for '{section_name}' (attempt {attempt + 1}/{max_retries}): {e}", flush=True)
-                logger.warning(f"[Proposal Agent] Transient error for {section_name} attempt {attempt + 1}: {e}")
+            print(f"[Proposal Agent] ⚠️ Transient stream error for '{section_name}' (attempt {attempt + 1}/{max_retries}): {e}", flush=True)
+            logger.warning(f"[Proposal Agent] Transient stream error for {section_name} attempt {attempt + 1}: {e}")
+            continue
+
+        except ClientError as e:
+            last_exception = e
+            # Classify by the structured error code instead of substring-matching str(e).
+            code = e.response.get('Error', {}).get('Code', '')
+            if code in _TRANSIENT_BEDROCK_ERRORS:
+                print(f"[Proposal Agent] ⚠️ Transient error {code} for '{section_name}' (attempt {attempt + 1}/{max_retries}): {e}", flush=True)
+                logger.warning(f"[Proposal Agent] Transient error {code} for {section_name} attempt {attempt + 1}: {e}")
                 continue
-            # Non-retryable error — fail immediately
+            print(f"[Proposal Agent] ❌ Claude error {code} for '{section_name}': {e}", flush=True)
+            logger.error(f"[Proposal Agent] Error {code} generating {section_name}: {e}")
+            raise
+
+        except Exception as e:
+            # Non-retryable (refusal, validation, programming error) — fail immediately.
             print(f"[Proposal Agent] ❌ Claude error for '{section_name}': {e}", flush=True)
             logger.error(f"[Proposal Agent] Error generating {section_name}: {e}")
             raise

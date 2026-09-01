@@ -184,25 +184,44 @@ def test_prompt(prompt_id, test_input):
             prompt_text = prompt_text.replace(f'{{{{{key}}}}}', str(value))
         
         # Call Bedrock Runtime to test the prompt
-        bedrock_runtime = boto3.client('bedrock-runtime', region_name=REGION)
-        
+        from botocore.config import Config
+        # Adaptive retries so a throttled test call is retried rather than surfaced as an error.
+        bedrock_runtime = boto3.client(
+            'bedrock-runtime',
+            region_name=REGION,
+            config=Config(retries={'max_attempts': 5, 'mode': 'adaptive'}),
+        )
+        # 500 tokens truncated most prompt previews; 4000 is still a small non-streaming call.
+        test_max_tokens = 4000
+
         response = bedrock_runtime.invoke_model(
             modelId=model_id,
             body=json.dumps({
                 'anthropic_version': 'bedrock-2023-05-31',
-                'max_tokens': 500,
+                'max_tokens': test_max_tokens,
                 'messages': [{
                     'role': 'user',
                     'content': prompt_text
                 }]
             })
         )
-        
+
         response_body = json.loads(response['body'].read())
-        
+
+        stop_reason = response_body.get('stop_reason')
+        if stop_reason == 'max_tokens':
+            print(f"Warning: prompt test hit max_tokens={test_max_tokens}; output truncated")
+
+        # First text block — content[0] is not guaranteed to be text.
+        result_text = next(
+            (b.get('text', '') for b in response_body.get('content', []) if b.get('type') == 'text'),
+            ''
+        )
+
         return {
-            'result': response_body.get('content', [{}])[0].get('text', ''),
+            'result': result_text,
             'usage': response_body.get('usage', {}),
+            'stopReason': stop_reason,
             'modelId': model_id
         }
         
