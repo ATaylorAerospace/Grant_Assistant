@@ -527,7 +527,7 @@ def convert_grant_to_ui_format(grant_data: Dict[str, Any]) -> Dict[str, Any]:
                 clean_amount = str(amount_str).replace('$', '').replace(',', '').strip()
                 if clean_amount:
                     amount = float(clean_amount)
-            except:
+            except (ValueError, TypeError):
                 amount = 0
         
         ui_grant = {

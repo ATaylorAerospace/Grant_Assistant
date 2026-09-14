@@ -66,13 +66,21 @@ def handler(event, context):
             user_id = authed_user_id
 
             # Query using GSI
-            response = table.query(
-                IndexName='proposalsByUserId',
-                KeyConditionExpression=Key('userId').eq(user_id),
-                ScanIndexForward=False  # Sort by most recent first
-            )
+            query_kwargs = {
+                'IndexName': 'proposalsByUserId',
+                'KeyConditionExpression': Key('userId').eq(user_id),
+                'ScanIndexForward': False,  # Sort by most recent first
+            }
+            # Read every page: a single query returns at most 1 MB, so users with
+            # many proposals would otherwise see only the first page.
+            items = []
+            while True:
+                response = table.query(**query_kwargs)
+                items.extend(response.get('Items', []))
+                if 'LastEvaluatedKey' not in response:
+                    break
+                query_kwargs['ExclusiveStartKey'] = response['LastEvaluatedKey']
             
-            items = response.get('Items', [])
             print(f"✅ Found {len(items)} proposals for user {user_id}")
             
             # Convert ALL Decimal values to float (DynamoDB returns Decimals, but JSON doesn't support them)

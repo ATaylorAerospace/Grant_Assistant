@@ -1165,16 +1165,24 @@ def query_knowledge_base(grant_data: Dict[str, Any], selected_doc_ids: List[str]
             # Query for documents matching: userId + agency + category='reference'
             logger.info(f"[Proposal Agent] Scanning for documents: userId={user_id}, agency={agency}, category=reference")
             
-            response = table.scan(
-                FilterExpression='userId = :uid AND agency = :agency AND category = :category',
-                ExpressionAttributeValues={
+            scan_kwargs = {
+                'FilterExpression': 'userId = :uid AND agency = :agency AND category = :category',
+                'ExpressionAttributeValues': {
                     ':uid': user_id,
                     ':agency': agency,
                     ':category': 'reference'
                 }
-            )
+            }
+            # Scan to completion: a single scan returns at most 1 MB, so an
+            # unpaginated scan silently drops documents once the table grows.
+            matching_docs = []
+            while True:
+                response = table.scan(**scan_kwargs)
+                matching_docs.extend(response.get('Items', []))
+                if 'LastEvaluatedKey' not in response:
+                    break
+                scan_kwargs['ExclusiveStartKey'] = response['LastEvaluatedKey']
             
-            matching_docs = response.get('Items', [])
             logger.info(f"[Proposal Agent] Found {len(matching_docs)} matching documents")
             
             for doc in matching_docs:

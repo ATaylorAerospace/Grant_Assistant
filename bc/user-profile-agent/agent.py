@@ -40,6 +40,9 @@ logger = logging.getLogger(__name__)
 
 app = BedrockAgentCoreApp()
 
+# Region comes from the runtime, not a hardcoded us-east-1 (this stack also deploys to eu-west-1).
+AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
+
 # DynamoDB setup with error handling
 try:
     # Check if running locally (has explicit credentials) or in cloud (use IAM role)
@@ -50,13 +53,13 @@ try:
             aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
             aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
             aws_session_token=os.environ.get('AWS_SESSION_TOKEN'),
-            region_name='us-east-1'
+            region_name=AWS_REGION
         )
         dynamodb_resource = session.resource('dynamodb')
     else:
         # Cloud deployment - use IAM role/instance profile
         logger.info("☁️ CLOUD MODE: Using IAM role/instance profile")
-        dynamodb_resource = boto3.resource('dynamodb', region_name='us-east-1')
+        dynamodb_resource = boto3.resource('dynamodb', region_name=AWS_REGION)
     
     users_table = dynamodb_resource.Table('researcher_profiles_v2')
     logger.info("✅ DynamoDB resource initialized")
@@ -69,13 +72,20 @@ except Exception as e:
 def search_users_by_attributes(query: str) -> str:
     """Search users by research profile attributes"""
     try:
-        response = users_table.scan()
+        # Scan to completion: a single scan returns at most 1 MB of items.
+        items = []
+        scan_kwargs = {}
+        while True:
+            response = users_table.scan(**scan_kwargs)
+            items.extend(response.get('Items', []))
+            if 'LastEvaluatedKey' not in response:
+                break
+            scan_kwargs['ExclusiveStartKey'] = response['LastEvaluatedKey']
         matching_users = []
         
         query_lower = query.lower()
         query_words = query_lower.split()
         
-        items = response.get('Items', [])
         logger.info(f"Processing {len(items)} items from DynamoDB")
         
         for i, item in enumerate(items):
