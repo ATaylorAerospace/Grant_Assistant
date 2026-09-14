@@ -50,6 +50,26 @@ dynamodb = boto3.resource('dynamodb')
 appsync_client = boto3.client('appsync')
 cfn_client = boto3.client('cloudformation')
 
+# Bedrock clients are created lazily (BEDROCK_AGENTCORE_REGION is read from the
+# environment below) and reused across warm invocations instead of being rebuilt
+# on every request.
+_bedrock_runtime = None
+_bedrock_agentcore = None
+
+
+def _get_bedrock_runtime():
+    global _bedrock_runtime
+    if _bedrock_runtime is None:
+        _bedrock_runtime = boto3.client('bedrock-runtime', region_name=BEDROCK_AGENTCORE_REGION)
+    return _bedrock_runtime
+
+
+def _get_bedrock_agentcore():
+    global _bedrock_agentcore
+    if _bedrock_agentcore is None:
+        _bedrock_agentcore = boto3.client('bedrock-agentcore', region_name=BEDROCK_AGENTCORE_REGION)
+    return _bedrock_agentcore
+
 # Environment variables - All required, no fallbacks
 PROPOSALS_TABLE = os.environ['PROPOSALS_TABLE']
 BEDROCK_AGENTCORE_REGION = os.environ['BEDROCK_AGENTCORE_REGION']
@@ -182,8 +202,8 @@ def lambda_handler(event, context):
         # Write error to DynamoDB
         try:
             write_proposal_status(proposal_id, 'failed', {'error': str(e)})
-        except:
-            logger.error("[Proposal Agent] Failed to write error status to DynamoDB")
+        except Exception as write_error:
+            logger.error(f"[Proposal Agent] Failed to write error status to DynamoDB: {write_error}")
         
         return error_result
 
@@ -218,7 +238,7 @@ def handle_generate_proposal(arguments: Dict[str, Any], cognito_user_id: str = N
         if GUARDRAIL_ID and GUARDRAIL_VERSION:
             screen_text = grant_info.get('title', '') + ' ' + grant_info.get('description', '')
             if screen_text.strip():
-                bedrock_runtime = boto3.client('bedrock-runtime', region_name=BEDROCK_AGENTCORE_REGION)
+                bedrock_runtime = _get_bedrock_runtime()
                 guardrail_response = bedrock_runtime.apply_guardrail(
                     guardrailIdentifier=GUARDRAIL_ID,
                     guardrailVersion=GUARDRAIL_VERSION,
@@ -285,8 +305,8 @@ def handle_generate_proposal(arguments: Dict[str, Any], cognito_user_id: str = N
         logger.info(f"[Proposal Agent] Agent ARN: {agent_arn}")
         logger.info(f"[Proposal Agent] Payload: {json.dumps(agent_payload, cls=DecimalEncoder)}")
         
-        # Create Bedrock AgentCore client
-        bedrock_agentcore = boto3.client('bedrock-agentcore', region_name=BEDROCK_AGENTCORE_REGION)
+        # Bedrock AgentCore client (created once per container, reused across invocations)
+        bedrock_agentcore = _get_bedrock_agentcore()
         
         # Ensure session ID meets AgentCore minimum length requirement (33 chars)
         agentcore_session_id = proposal_id
@@ -341,8 +361,8 @@ def handle_generate_proposal(arguments: Dict[str, Any], cognito_user_id: str = N
         # Write error to DynamoDB
         try:
             write_proposal_status(proposal_id, 'failed', {'error': str(e)})
-        except:
-            logger.error("[Proposal Agent] Failed to write error status to DynamoDB")
+        except Exception as write_error:
+            logger.error(f"[Proposal Agent] Failed to write error status to DynamoDB: {write_error}")
         
         return error_result
 

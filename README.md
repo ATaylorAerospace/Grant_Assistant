@@ -395,6 +395,7 @@ User data is served only over **authenticated Cognito sessions**:
 - **API key lifetime is 30 days** (not a year), limiting the blast radius if a key is exposed.
 - **The web client fails closed** — if there is no valid Cognito session it does **not** fall back to the API key; unauthenticated requests are rejected by AppSync.
 - **Proposal queries are identity-scoped** — the `listProposalsByUser` resolver derives the user from the authenticated identity, so a caller can only list their own proposals.
+- **Upload size is enforced server-side** — the KB document processor checks the real S3 object size before downloading it, so a client cannot declare a small file and upload a large one.
 
 > ℹ️ Model-level owner-scoping (`allow.owner()`) for auto-generated queries is a planned follow-up; today, cross-user isolation for proposals is enforced in the resolver layer.
 
@@ -460,10 +461,14 @@ The LLM call sites read their model and limits from environment variables, so tu
 | `CLAUDE_MODEL_ID` | Proposal Generation agent · Proposal Evaluator agent · Chat Handler | *(per tier)* `us.`/`eu.` `anthropic.claude-opus-5-v1` or `…claude-sonnet-5-v1` | Overrides the inference-profile ID — set it if your account's profile IDs differ from the defaults (see *Upgrading to a Newer Claude Generation* above) |
 | `EVAL_MAX_TOKENS` | Proposal Evaluator agent | `16000` | Output cap for the structured evaluation JSON (thinking counts toward it) — a `max_tokens` stop is logged as truncation instead of failing silently |
 | `MAX_EVAL_CHARS` | Proposal Evaluator agent | `300000` | Plain-text cap on the proposal sent for evaluation; the whole proposal is graded, and any truncation is logged |
+| `MAX_FILE_SIZE_BYTES` | KB Document Processor | `52428800` (50 MB) | Server-side cap on the **real** S3 object size — oversized uploads are refused before download (the upload API only sees the client-declared size) |
+| `USER_PROFILE_USER_ID_INDEX` | US / EU Grants Search agents | `userProfilesByUserId` | Name of the `UserProfile` userId index the agents query; change only if your deployment names the index differently |
 | `CHAT_MAX_TOKENS` | Chat Handler | `8000` | Reply length cap for the AI chat assistant (thinking counts toward it) |
 | `SEED_TEST_USER_PASSWORD` | Post-deploy seeder | *(random, unusable)* | Optional known password for `test_user@example.com` — see Step 4 of the Quick Start |
 
 All Bedrock clients use the SDK's **adaptive retry** mode, so throttling is retried with client-side rate limiting rather than surfaced to the user as an error.
+
+Other runtime behaviours worth knowing: AWS SDK clients are created **once per container** and reused across warm invocations; every DynamoDB query and scan is **paginated to completion** (a single call returns at most 1 MB, so results are never silently cut off as tables grow); outbound AppSync calls from the discovery Lambdas are bounded by a **30-second timeout**; and user-profile lookups use the `UserProfile` **userId index** instead of scanning the whole table on every search.
 
 ### Monitoring & Logs
 
@@ -477,6 +482,7 @@ AgentCore agents write structured logs to CloudWatch under `/aws/bedrock-agentco
 - `Transient error <Code>` or `Transient stream error`, followed by `Retry n/2` — a Bedrock throttle or mid-stream error was retried automatically. Only a final `failed … after 3 attempts` is a real failure.
 - `refused` — the model declined the request (`stop_reason: refusal`); the section or reply is reported rather than silently returned empty.
 - `Error calling Claude (<ExceptionType>)` in the evaluator — the detailed analysis failed and the heuristic fallback (grade `C+`, "Manual review recommended") was used; the exception type says why.
+- `Index userProfilesByUserId unavailable` — a grants-search agent fell back to scanning the profile table; deploy the current schema (which adds the index) or set `USER_PROFILE_USER_ID_INDEX` to the index name in your account.
 
 **Bayesian matching:** see [How Bayesian Matching Works](install_docs/reference/HOW_BAYESIAN_MATCHING_WORKS.md) for how grant relevance scores are calculated and how the system learns from feedback.
 

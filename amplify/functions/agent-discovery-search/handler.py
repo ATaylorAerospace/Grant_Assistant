@@ -17,6 +17,12 @@ from grant_normalizer import normalize_grants, convert_decimal_to_float
 
 # Configure logging
 logger = logging.getLogger()
+
+# AWS clients are created once per container and reused across warm invocations
+# instead of being rebuilt inside each function call.
+dynamodb = boto3.resource('dynamodb')
+lambda_client = boto3.client('lambda')
+s3_client = boto3.client('s3')
 logger.setLevel(logging.INFO)
 
 def extract_broad_keywords(profile_keywords: List[str], max_queries: int = 3) -> List[str]:
@@ -107,7 +113,8 @@ def call_appsync_iam(endpoint: str, query: str, variables: dict = None) -> dict:
     )
     
     try:
-        with urlopen(req) as response:
+        # Bounded: a stalled AppSync call must not hang this Lambda until its own timeout.
+        with urlopen(req, timeout=30) as response:
             result = json.loads(response.read().decode('utf-8'))
     except HTTPError as e:
         error_body = e.read().decode('utf-8')
@@ -506,7 +513,6 @@ def consolidate_results(config_id: str, user_id: str, timestamp: int, grants_sur
         logger.info(f"🔄 [CONSOLIDATE_START] EU Sessions: {eu_session_ids}")
         logger.info(f"🔄 [CONSOLIDATE_START] Grants to surface: {grants_surfaced}")
         
-        dynamodb = boto3.resource('dynamodb')
         
         # 🇺🇸 Retrieve US grants from all sessions
         us_grants = []
@@ -871,7 +877,6 @@ def invoke_us_search(session_id: str, user_id: str, query: str, agencies: list):
             'identity': {'sub': user_id, 'username': user_id}
         }
         
-        lambda_client = boto3.client('lambda')
         
         logger.info(f"🇺🇸 Invoking US Lambda: {grants_search_function}")
         
@@ -925,8 +930,6 @@ def invoke_eu_search(session_id: str, user_id: str, query: str):
         
         logger.info(f"🇪🇺 [DEBUG] Lambda payload prepared: {json.dumps(lambda_payload)[:200]}...")
         
-        lambda_client = boto3.client('lambda')
-        logger.info(f"🇪🇺 [DEBUG] Lambda client created")
         
         logger.info(f"🇪🇺 Invoking EU Lambda: {eu_search_function}")
         logger.info(f"🇪🇺 [DEBUG] About to call lambda_client.invoke()...")
@@ -1067,7 +1070,6 @@ def retrieve_and_store_results(session_id, config_id, user_id, grants_surfaced, 
         logger.info(f"   EU Sessions ({len(eu_sessions)}): {eu_sessions}")
         logger.info(f"🎯 Will filter to top {grants_surfaced} grants from AgentConfig")
         
-        dynamodb = boto3.resource('dynamodb')
         
         # 🇺🇸 Retrieve US grants from all sessions
         us_grants = []
@@ -1218,10 +1220,7 @@ def retrieve_and_store_results(session_id, config_id, user_id, grants_surfaced, 
 def store_results_in_s3(session_id, config_id, user_id, top_grants, total_grants):
     """Store discovery results in S3 with user segregation"""
     try:
-        import boto3
-        import decimal
         
-        s3_client = boto3.client('s3')
         bucket_name = os.environ.get('DISCOVERY_RESULTS_BUCKET')
         
         if not bucket_name:
@@ -1295,10 +1294,7 @@ def store_consolidated_results(session_id, config_id, user_id, top_grants, all_g
     - Session metadata for tracking
     """
     try:
-        import boto3
-        import decimal
         
-        s3_client = boto3.client('s3')
         bucket_name = os.environ.get('DISCOVERY_RESULTS_BUCKET')
         
         if not bucket_name:

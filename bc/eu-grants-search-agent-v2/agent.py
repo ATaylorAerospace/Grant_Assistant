@@ -486,8 +486,8 @@ def convert_eu_grant_to_ui_format(grant: Dict[str, Any]) -> Dict[str, Any]:
             try:
                 dt = datetime.fromtimestamp(deadline_dates[0] / 1000)
                 deadline = dt.strftime('%Y-%m-%d')
-            except:
-                pass
+            except (ValueError, TypeError, OverflowError, OSError):
+                pass  # unparseable deadline: leave blank
         
         # Extract description
         details_data = grant.get('_detailsData', {})

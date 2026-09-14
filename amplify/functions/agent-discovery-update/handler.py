@@ -69,7 +69,8 @@ def call_appsync_iam(endpoint: str, query: str, variables: dict = None) -> dict:
     )
     
     try:
-        with urlopen(req) as response:
+        # Bounded: a stalled AppSync call must not hang this Lambda until its own timeout.
+        with urlopen(req, timeout=30) as response:
             result = json.loads(response.read().decode('utf-8'))
     except HTTPError as e:
         error_body = e.read().decode('utf-8')
