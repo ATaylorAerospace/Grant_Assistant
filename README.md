@@ -236,7 +236,7 @@ Go to [CodeBuild → Build projects](https://console.aws.amazon.com/codesuite/co
 | Project | What it does | Expected time |
 |---------|-------------|---------------|
 | `grow2-arm64-deployer-{region}` | Deploys the full CDK stack | ~35-55 min |
-| `grow2-seeder-{account}-{region}` | Creates test user, seeds data, deploys React app | ~8-10 min after deployer |
+| `grow2-seeder-{account}-{region}-{deployment id}` | Creates test user, seeds data, deploys React app | ~8-10 min after deployer |
 
 The seeder starts automatically when the deployer finishes. If either shows **Failed**, check its build logs and see [Known Errors](install_docs/errors/KNOWN_ERRORS.md).
 
@@ -474,7 +474,9 @@ git pull
 ./installation/deploy-grow2-bootstrap.sh us-east-1
 ```
 
-CDK diffs the stack and only rebuilds what changed. The seeder is skipped on updates — to rebuild the React UI or re-run seeding, manually trigger the `grow2-seeder-{account}-{region}` CodeBuild project. See the [Updating Guide](install_docs/maintenance/UPDATING.md).
+After any change to `amplify/custom/`, `installation/` or `bc/`, run `./scripts/validate-deployment.sh <region> [--identifier <name>] [--smoke]` — it checks exports, runtime names, Guardrail/WAF, the Knowledge Base, the seeder and the hosted UI against what the code expects. The full release check (two deployments in one region, scoped IAM, prod hardening, scoped teardown) is the [Validation Runbook](install_docs/deployment/VALIDATION_RUNBOOK.md).
+
+CDK diffs the stack and only rebuilds what changed. The seeder is skipped on updates — to rebuild the React UI or re-run seeding, manually trigger the `grow2-seeder-{account}-{region}-{deployment id}` CodeBuild project. See the [Updating Guide](install_docs/maintenance/UPDATING.md).
 
 ### Runtime Configuration
 
