@@ -58,7 +58,7 @@ def invoke(payload):
 - `boto3`: AWS SDK for DynamoDB/AppSync
 - `spacy`: NLP for query parsing
 - `httpx`: HTTP client for grants.gov API
-- `bayesian_matcher.py`: Shared scoring logic from V1
+- `common/matching.py` (shared, in `bc/common/`): config-driven scoring — see `config/domains/grants/matching.json`
 
 ## Deployment
 
@@ -68,7 +68,6 @@ def invoke(payload):
 cd bc/grants-search-agent-v2
 
 # Copy Bayesian matcher from V1
-cp ../../amplify/functions/grants-search-processor/bayesian_matcher.py .
 
 # Build image
 docker build -t grants-search-agent-v2 .

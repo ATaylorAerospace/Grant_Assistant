@@ -140,7 +140,7 @@ def invoke(payload):
         logger.info(f"[V2] Using tables: {grant_records_table_name}, {search_event_table_name}")
         logger.info(f"[V2] AppSync endpoint: {appsync_endpoint}")
         
-        # Set USER_PROFILE_TABLE environment variable BEFORE importing bayesian_matcher
+        # Set USER_PROFILE_TABLE environment variable BEFORE importing common.matching
         if user_profile_table_name:
             os.environ['USER_PROFILE_TABLE'] = user_profile_table_name
             logger.info(f"[V2] Set USER_PROFILE_TABLE: {user_profile_table_name}")
@@ -149,16 +149,16 @@ def invoke(payload):
         os.environ['APPSYNC_ENDPOINT'] = appsync_endpoint
         os.environ['GRAPHQL_API_ID'] = graphql_api_id
         
-        # NOW import bayesian_matcher (after setting environment variable)
+        # NOW import common.matching (after setting environment variable)
         global BAYESIAN_SCORING_AVAILABLE, apply_dual_scoring, appsync_client
         try:
-            from bayesian_matcher import apply_dual_scoring as _apply_dual_scoring
+            from common.matching import apply_dual_scoring as _apply_dual_scoring
             apply_dual_scoring = _apply_dual_scoring
             BAYESIAN_SCORING_AVAILABLE = True
-            logger.info("[V2] ✅ Successfully imported bayesian_matcher module")
+            logger.info("[V2] ✅ Successfully imported common.matching")
         except Exception as e:
             BAYESIAN_SCORING_AVAILABLE = False
-            logger.error(f"[V2] ❌ Failed to import bayesian_matcher: {str(e)}")
+            logger.error(f"[V2] ❌ Failed to import common.matching: {str(e)}")
             logger.error("[V2] ⚠️ Bayesian scoring will be DISABLED")
         
         # Initialize AppSync client for mutations (IAM auth only)
@@ -226,7 +226,7 @@ def invoke(payload):
                 
                 if BAYESIAN_SCORING_AVAILABLE and cognito_user_id:
                     logger.info(f"[V2] 🧠 Applying Bayesian scoring for user {cognito_user_id}")
-                    scored_grants = apply_dual_scoring(grants, cognito_user_id, query)
+                    scored_grants = apply_dual_scoring(grants, cognito_user_id, query, source='GRANTS_GOV')
                     logger.info(f"[V2] ✅ Bayesian scoring complete")
                 else:
                     logger.warning("[V2] ⚠️  Bayesian scoring not available, using default scores")

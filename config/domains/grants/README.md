@@ -7,7 +7,7 @@ a different funding domain is a different pack plus its source connectors.
 | File | Read by | What it controls |
 |------|---------|------------------|
 | `prompts/*.json` + `manifest.json` | `amplify/custom/bedrock-prompts-stack.ts` (deployed as Bedrock managed prompts) | Per-agency proposal section prompts (NSF, NIH, DOD, DOE, NASA, European Commission). See [Adding Custom Prompts](../../../install_docs/reference/ADDING_PROMPTS.md). |
-| `matching.json` | `bc/*/bayesian_matcher.py` via `common.domain_config.matching()` | Researcher priors, feature likelihood ratios, keyword field weights. |
+| `matching.json` | `bc/common/matching.py` via `common.domain_config.matching()` | Feature definitions (keyword lists, amount bands), researcher priors, feature likelihood ratios, keyword field weights, profile boosts, per-source behaviour (`sources`). |
 | `sources.json` | `bc/common/sources/*` via `common.domain_config.sources()` | Endpoints, result limits and status filters per source connector. |
 
 ## How the pack reaches the agents

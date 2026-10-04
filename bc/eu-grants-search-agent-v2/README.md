@@ -91,10 +91,10 @@ python python/check_v2_lambda_logs.py
 ## Critical Implementation Notes
 
 ### 1. Import Timing
-Set `USER_PROFILE_TABLE` environment variable BEFORE importing `bayesian_matcher`:
+Set `USER_PROFILE_TABLE` environment variable BEFORE importing `common.matching`:
 ```python
 os.environ['USER_PROFILE_TABLE'] = user_profile_table_name
-from bayesian_matcher import apply_dual_scoring
+from common.matching import apply_dual_scoring
 ```
 
 ### 2. S3 Cache Reading (NO API Fallback)
@@ -157,7 +157,7 @@ aws logs tail /aws/bedrock-agentcore/runtimes/eu_grants_search_agent_v2-xxxxx-DE
 
 1. **KeyError: USER_PROFILE_TABLE**
    - Cause: Import timing issue
-   - Fix: Set env var BEFORE importing bayesian_matcher
+   - Fix: Set env var BEFORE importing common.matching
 
 2. **S3 cache read failed**
    - Cause: Cache bucket not configured or file missing
