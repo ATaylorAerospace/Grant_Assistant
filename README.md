@@ -544,8 +544,6 @@ npm test -- kb-search      # one function's suite
 
 `scripts/test-lambdas.sh` runs each function's suite in its own process from inside its directory (several share the file name `test_handler.py`) and exports the placeholder environment the handlers read at import time. New Lambda tests follow the existing `amplify/functions/kb-*/test_handler.py` pattern: `unittest.mock` around the boto3 clients, no real AWS calls.
 
-> The four existing `kb-*` suites predate recent handler changes and currently fail on signature/behaviour drift; the CI job runs them but is marked `continue-on-error` until they are brought back in sync.
-
 **Tier 1 — run an agent or the UI locally**
 
 Every AgentCore agent is a `BedrockAgentCoreApp`; `python agent.py` serves the same HTTP contract as the managed runtime (`POST /invocations`, `GET /ping`) on port 8080. The harness starts an agent in its own virtualenv, waits for `/ping`, posts a payload, prints the response, and stops it:

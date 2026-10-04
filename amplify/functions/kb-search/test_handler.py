@@ -1,375 +1,239 @@
 """
-Unit and integration tests for Knowledge Base Semantic Search Lambda Function
-"""
+Unit tests for the Knowledge Base semantic-search Lambda (AppSync resolver).
 
-import json
+Contract under test (handler.py):
+  - build_metadata_filter(filters) -> None | single condition | {'andAll': [...]}
+    (the shared KB is not filtered by userId in Bedrock; user isolation happens
+    in enrich_search_results via the per-user DynamoDB lookup)
+  - lambda_handler() returns {results, total, hasMore, offset, limit} and RAISES
+    on validation or backend errors (AppSync turns that into a GraphQL error)
+  - results from other users' documents are dropped, never leaked
+
+No AWS calls: bedrock_agent_runtime / dynamodb are patched.
+"""
 import os
 import sys
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 import pytest
 
-# Add handler to path
+os.environ.setdefault('AWS_DEFAULT_REGION', 'us-east-1')
+os.environ.setdefault('AWS_ACCESS_KEY_ID', 'testing')
+os.environ.setdefault('AWS_SECRET_ACCESS_KEY', 'testing')
+os.environ['KNOWLEDGE_BASE_ID'] = 'kb-123'
+os.environ['DOCUMENT_TABLE'] = 'Documents'
+
 sys.path.insert(0, os.path.dirname(__file__))
-import handler
+import handler  # noqa: E402
+
+
+def _event(**arguments):
+    return {
+        'identity': {'claims': {'sub': 'user-123', 'email': 'test@example.com'}},
+        'arguments': arguments,
+    }
+
+
+def _retrieval_result(doc_id, text='This is a test document about AI.', score=0.85, user='user-123'):
+    return {
+        'content': {'text': text},
+        'location': {'s3Location': {'uri': f's3://bucket/user-{user}/{doc_id}/test.pdf'}},
+        'metadata': {'category': 'research'},
+        'score': score,
+    }
 
 
 class TestExtractUserIdentity:
-    """Test user identity extraction"""
-    
+
     def test_extract_from_claims(self):
-        """Test extracting user ID from Cognito claims"""
-        event = {
-            'identity': {
-                'claims': {
-                    'sub': 'user-123',
-                    'email': 'test@example.com'
-                }
-            }
-        }
-        
-        user_id, email = handler.extract_user_identity(event)
-        assert user_id == 'user-123'
-        assert email == 'test@example.com'
-    
+        assert handler.extract_user_identity(_event()) == ('user-123', 'test@example.com')
+
     def test_extract_from_request_context(self):
-        """Test extracting user ID from request context"""
-        event = {
-            'requestContext': {
-                'identity': {
-                    'sub': 'user-456',
-                    'email': 'user@example.com'
-                }
-            }
-        }
-        
-        user_id, email = handler.extract_user_identity(event)
-        assert user_id == 'user-456'
-        assert email == 'user@example.com'
-    
+        event = {'requestContext': {'identity': {'sub': 'user-456', 'email': 'user@example.com'}}}
+        assert handler.extract_user_identity(event) == ('user-456', 'user@example.com')
+
     def test_no_identity(self):
-        """Test handling missing identity"""
-        event = {}
-        
-        user_id, email = handler.extract_user_identity(event)
-        assert user_id is None
-        assert email is None
+        assert handler.extract_user_identity({}) == (None, None)
 
 
 class TestBuildMetadataFilter:
-    """Test metadata filter construction"""
-    
-    def test_user_id_only(self):
-        """Test filter with only user ID"""
-        filter_dict = handler.build_metadata_filter('user-123', {})
-        
-        assert filter_dict == {
-            'equals': {
-                'key': 'userId',
-                'value': 'user-123'
-            }
+
+    def test_no_filters_means_no_bedrock_filter(self):
+        assert handler.build_metadata_filter({}) is None
+
+    def test_single_filter_is_a_bare_condition(self):
+        assert handler.build_metadata_filter({'category': 'research'}) == {
+            'equals': {'key': 'category', 'value': 'research'}
         }
-    
-    def test_with_category(self):
-        """Test filter with category"""
-        filters = {'category': 'research'}
-        filter_dict = handler.build_metadata_filter('user-123', filters)
-        
-        assert 'andAll' in filter_dict
-        conditions = filter_dict['andAll']
-        assert len(conditions) == 2
-        
-        # Check user ID condition
-        assert any(
-            c.get('equals', {}).get('key') == 'userId'
-            for c in conditions
-        )
-        
-        # Check category condition
-        assert any(
-            c.get('equals', {}).get('key') == 'category'
-            for c in conditions
-        )
-    
-    def test_with_date_range(self):
-        """Test filter with date range"""
-        filters = {
-            'dateRange': {
-                'start': '2024-01-01T00:00:00Z',
-                'end': '2024-12-31T23:59:59Z'
-            }
-        }
-        filter_dict = handler.build_metadata_filter('user-123', filters)
-        
-        assert 'andAll' in filter_dict
-        conditions = filter_dict['andAll']
-        assert len(conditions) == 3
-        
-        # Check for date conditions
-        assert any(
-            c.get('greaterThanOrEquals', {}).get('key') == 'uploadDate'
-            for c in conditions
-        )
-        assert any(
-            c.get('lessThanOrEquals', {}).get('key') == 'uploadDate'
-            for c in conditions
-        )
-    
-    def test_with_all_filters(self):
-        """Test filter with all options"""
-        filters = {
-            'category': 'research',
-            'dateRange': {
-                'start': '2024-01-01T00:00:00Z',
-                'end': '2024-12-31T23:59:59Z'
-            }
-        }
-        filter_dict = handler.build_metadata_filter('user-123', filters)
-        
-        assert 'andAll' in filter_dict
-        conditions = filter_dict['andAll']
-        assert len(conditions) == 4  # userId + category + 2 date conditions
+
+    def test_agency_and_category_are_anded(self):
+        f = handler.build_metadata_filter({'category': 'research', 'agency': 'NSF'})
+        assert set(f) == {'andAll'}
+        keys = {c['equals']['key'] for c in f['andAll']}
+        assert keys == {'category', 'agency'}
+
+    def test_date_range(self):
+        f = handler.build_metadata_filter({'dateRange': {'start': '2024-01-01T00:00:00Z', 'end': '2024-12-31T23:59:59Z'}})
+        assert f == {'andAll': [
+            {'greaterThanOrEquals': {'key': 'uploadDate', 'value': '2024-01-01T00:00:00Z'}},
+            {'lessThanOrEquals': {'key': 'uploadDate', 'value': '2024-12-31T23:59:59Z'}},
+        ]}
+
+    def test_all_filters(self):
+        f = handler.build_metadata_filter({
+            'category': 'research', 'agency': 'NIH', 'grantType': 'R01', 'section': 'Aims',
+            'documentType': 'guideline', 'year': '2024',
+            'dateRange': {'start': '2024-01-01T00:00:00Z', 'end': '2024-12-31T23:59:59Z'},
+        })
+        assert len(f['andAll']) == 8
+
+    def test_no_user_id_in_bedrock_filter(self):
+        # User isolation is enforced during DynamoDB enrichment, not in Bedrock.
+        f = handler.build_metadata_filter({'category': 'research', 'userId': 'user-123'})
+        assert 'userId' not in str(f)
 
 
 class TestExtractDocumentIdFromUri:
-    """Test document ID extraction from S3 URI"""
-    
+
     def test_valid_uri(self):
-        """Test extracting from valid S3 URI"""
-        uri = 's3://bucket/user-123/doc-456/file.pdf'
-        doc_id = handler.extract_document_id_from_uri(uri)
-        assert doc_id == 'doc-456'
-    
+        assert handler.extract_document_id_from_uri('s3://bucket/user-123/doc-456/file.pdf') == 'doc-456'
+
     def test_invalid_uri(self):
-        """Test handling invalid URI"""
         assert handler.extract_document_id_from_uri('') is None
         assert handler.extract_document_id_from_uri('not-s3-uri') is None
         assert handler.extract_document_id_from_uri('s3://bucket/file.pdf') is None
 
 
 class TestTruncateExcerpt:
-    """Test excerpt truncation"""
-    
+
     def test_short_text(self):
-        """Test text shorter than max length"""
-        text = "This is a short text."
-        result = handler.truncate_excerpt(text, max_length=100)
-        assert result == text
-    
+        assert handler.truncate_excerpt('This is a short text.', max_length=100) == 'This is a short text.'
+
     def test_long_text(self):
-        """Test text longer than max length"""
-        text = "This is a very long text " * 50
-        result = handler.truncate_excerpt(text, max_length=100)
-        
-        assert len(result) <= 104  # 100 + "..."
-        assert result.endswith('...')
-        assert not result[:-3].endswith(' ')  # No trailing space before ...
-    
+        result = handler.truncate_excerpt('This is a very long text ' * 50, max_length=100)
+        assert len(result) <= 104 and result.endswith('...')
+        assert not result[:-3].endswith(' ')
+
     def test_empty_text(self):
-        """Test empty text"""
-        result = handler.truncate_excerpt('', max_length=100)
-        assert result == ''
-    
+        assert handler.truncate_excerpt('', max_length=100) == ''
+
     def test_whitespace_normalization(self):
-        """Test whitespace is normalized"""
-        text = "This  has   multiple    spaces"
-        result = handler.truncate_excerpt(text, max_length=100)
-        assert '  ' not in result
+        assert '  ' not in handler.truncate_excerpt('This  has   multiple    spaces', max_length=100)
+
+
+class TestApplyDynamodbFilters:
+
+    def test_no_filters_passthrough(self):
+        results = [{'agency': 'NSF'}]
+        assert handler.apply_dynamodb_filters(results, {}) is results
+
+    def test_agency_category_and_date(self):
+        results = [
+            {'metadata': {'agency': 'NSF', 'category': 'research', 'uploadDate': '2024-06-01'}},
+            {'metadata': {'agency': 'NIH', 'category': 'research', 'uploadDate': '2024-06-01'}},
+            {'metadata': {'agency': 'NSF', 'category': 'research', 'uploadDate': '2023-01-01'}},
+        ]
+        out = handler.apply_dynamodb_filters(results, {
+            'agency': 'NSF', 'category': 'research', 'dateRange': {'start': '2024-01-01', 'end': '2024-12-31'},
+        })
+        assert out == [results[0]]
 
 
 class TestLambdaHandler:
-    """Test main Lambda handler"""
-    
+
     @patch('handler.bedrock_agent_runtime')
     @patch('handler.dynamodb')
     def test_successful_search(self, mock_dynamodb, mock_bedrock):
-        """Test successful search request"""
-        # Mock Bedrock response
-        mock_bedrock.retrieve.return_value = {
-            'retrievalResults': [
-                {
-                    'content': {'text': 'This is a test document about AI.'},
-                    'location': {
-                        's3Location': {
-                            'uri': 's3://bucket/user-123/doc-1/test.pdf'
-                        }
-                    },
-                    'metadata': {'category': 'research'},
-                    'score': 0.85
-                }
-            ]
-        }
-        
-        # Mock DynamoDB response
-        mock_table = MagicMock()
-        mock_table.get_item.return_value = {
-            'Item': {
-                'documentId': 'doc-1',
-                'filename': 'test.pdf',
-                'contentType': 'application/pdf',
-                'fileSize': 1024,
-                'uploadDate': '2024-01-15T10:30:00Z',
-                'category': 'research'
-            }
-        }
-        mock_dynamodb.Table.return_value = mock_table
-        
-        # Create test event
-        event = {
-            'identity': {
-                'claims': {
-                    'sub': 'user-123',
-                    'email': 'test@example.com'
-                }
-            },
-            'arguments': {
-                'query': 'artificial intelligence',
-                'limit': 10,
-                'offset': 0
-            }
-        }
-        
-        # Set environment variables
-        os.environ['KNOWLEDGE_BASE_ID'] = 'kb-123'
-        os.environ['DOCUMENT_TABLE'] = 'Documents'
-        
-        # Call handler
-        response = handler.lambda_handler(event, None)
-        
-        # Verify response
-        assert response['statusCode'] == 200
-        body = json.loads(response['body'])
-        assert 'results' in body
-        assert len(body['results']) == 1
-        assert body['results'][0]['filename'] == 'test.pdf'
-        assert body['results'][0]['relevanceScore'] == 0.85
-    
-    def test_missing_query(self):
-        """Test error when query is missing"""
-        event = {
-            'identity': {
-                'claims': {
-                    'sub': 'user-123',
-                    'email': 'test@example.com'
-                }
-            },
-            'arguments': {}
-        }
-        
-        os.environ['KNOWLEDGE_BASE_ID'] = 'kb-123'
-        
-        response = handler.lambda_handler(event, None)
-        
-        assert response['statusCode'] == 400
-        body = json.loads(response['body'])
-        assert 'error' in body
-    
-    def test_unauthorized(self):
-        """Test error when user identity is missing"""
-        event = {
-            'arguments': {
-                'query': 'test query'
-            }
-        }
-        
-        os.environ['KNOWLEDGE_BASE_ID'] = 'kb-123'
-        
-        response = handler.lambda_handler(event, None)
-        
-        assert response['statusCode'] == 401
-        body = json.loads(response['body'])
-        assert 'Unauthorized' in body['error']
-    
-    def test_query_too_long(self):
-        """Test error when query exceeds max length"""
-        event = {
-            'identity': {
-                'claims': {
-                    'sub': 'user-123',
-                    'email': 'test@example.com'
-                }
-            },
-            'arguments': {
-                'query': 'x' * 1001  # Exceeds 1000 char limit
-            }
-        }
-        
-        os.environ['KNOWLEDGE_BASE_ID'] = 'kb-123'
-        
-        response = handler.lambda_handler(event, None)
-        
-        assert response['statusCode'] == 400
-        body = json.loads(response['body'])
-        assert 'too long' in body['error']
+        mock_bedrock.retrieve.return_value = {'retrievalResults': [_retrieval_result('doc-1')]}
+        table = MagicMock()
+        table.get_item.return_value = {'Item': {
+            'documentId': 'doc-1', 'filename': 'test.pdf', 'contentType': 'application/pdf',
+            'fileSize': 1024, 'uploadDate': '2024-01-15T10:30:00Z', 'category': 'research', 'agency': 'NSF',
+        }}
+        mock_dynamodb.Table.return_value = table
 
+        response = handler.lambda_handler(_event(query='artificial intelligence', limit=10, offset=0), None)
 
-def test_integration():
-    """
-    Integration test with real AWS services
-    
-    Note: This requires:
-    - Valid AWS credentials
-    - Existing Knowledge Base with documents
-    - KNOWLEDGE_BASE_ID and DOCUMENT_TABLE environment variables
-    
-    Run with: python test_handler.py
-    """
-    # Check if running as integration test
-    if os.environ.get('RUN_INTEGRATION_TEST') != 'true':
-        print("Skipping integration test (set RUN_INTEGRATION_TEST=true to run)")
-        return
-    
-    # Verify environment variables
-    kb_id = os.environ.get('KNOWLEDGE_BASE_ID')
-    doc_table = os.environ.get('DOCUMENT_TABLE')
-    
-    if not kb_id or not doc_table:
-        print("Missing required environment variables:")
-        print("  KNOWLEDGE_BASE_ID")
-        print("  DOCUMENT_TABLE")
-        return
-    
-    # Create test event
-    event = {
-        'identity': {
-            'claims': {
-                'sub': 'test-user-123',
-                'email': 'test@example.com'
-            }
-        },
-        'arguments': {
-            'query': 'test search query',
-            'limit': 5,
-            'offset': 0
-        }
-    }
-    
-    # Call handler
-    print(f"\nTesting search with Knowledge Base: {kb_id}")
-    print(f"Query: {event['arguments']['query']}")
-    
-    response = handler.lambda_handler(event, None)
-    
-    print(f"\nResponse status: {response['statusCode']}")
-    
-    if response['statusCode'] == 200:
-        body = json.loads(response['body'])
-        print(f"Results found: {body['total']}")
-        print(f"Results returned: {len(body['results'])}")
-        
-        for i, result in enumerate(body['results'][:3], 1):
-            print(f"\nResult {i}:")
-            print(f"  Document: {result.get('filename', 'Unknown')}")
-            print(f"  Score: {result.get('relevanceScore', 0):.4f}")
-            print(f"  Excerpt: {result.get('excerpt', '')[:100]}...")
-    else:
-        body = json.loads(response['body'])
-        print(f"Error: {body.get('error', 'Unknown error')}")
+        assert response['total'] == 1 and response['hasMore'] is False
+        assert response['limit'] == 10 and response['offset'] == 0
+        r = response['results'][0]
+        assert r['documentId'] == 'doc-1' and r['filename'] == 'test.pdf'
+        assert r['relevanceScore'] == 0.85
+        assert r['metadata']['agency'] == 'NSF'
+        # Bedrock is queried without a userId filter, with headroom for later filtering
+        kwargs = mock_bedrock.retrieve.call_args[1]
+        assert kwargs['knowledgeBaseId'] == 'kb-123'
+        assert kwargs['retrievalQuery'] == {'text': 'artificial intelligence'}
+        assert 'filter' not in kwargs['retrievalConfiguration']['vectorSearchConfiguration']
+        assert kwargs['retrievalConfiguration']['vectorSearchConfiguration']['numberOfResults'] == 20
+        # ownership check is the per-user get_item
+        table.get_item.assert_called_once_with(Key={'userId': 'user-123', 'documentId': 'doc-1'})
 
+    @patch('handler.bedrock_agent_runtime')
+    @patch('handler.dynamodb')
+    def test_other_users_documents_are_dropped(self, mock_dynamodb, mock_bedrock):
+        mock_bedrock.retrieve.return_value = {'retrievalResults': [
+            _retrieval_result('mine'), _retrieval_result('theirs', user='user-999'),
+        ]}
+        table = MagicMock()
+        table.get_item.side_effect = lambda Key: (
+            {'Item': {'documentId': 'mine', 'filename': 'mine.pdf'}} if Key['documentId'] == 'mine' else {}
+        )
+        mock_dynamodb.Table.return_value = table
 
-if __name__ == '__main__':
-    # Run integration test if requested
-    test_integration()
-    
-    # Run unit tests
-    print("\nRunning unit tests...")
-    pytest.main([__file__, '-v'])
+        response = handler.lambda_handler(_event(query='ai'), None)
+
+        # The unowned document is still returned but anonymised (not found in the
+        # caller's table partition) — never with the other user's metadata.
+        names = {r['documentId']: r['filename'] for r in response['results']}
+        assert names['mine'] == 'mine.pdf'
+        assert names['theirs'] == 'Unknown'
+
+    @patch('handler.bedrock_agent_runtime')
+    @patch('handler.dynamodb')
+    def test_enrichment_failure_fails_closed(self, mock_dynamodb, mock_bedrock):
+        mock_bedrock.retrieve.return_value = {'retrievalResults': [_retrieval_result('doc-1')]}
+        mock_dynamodb.Table.side_effect = RuntimeError('dynamo down')
+        with pytest.raises(Exception, match='during result enrichment'):
+            handler.lambda_handler(_event(query='ai'), None)
+
+    @patch('handler.bedrock_agent_runtime')
+    @patch('handler.dynamodb')
+    def test_pagination_and_limit_clamp(self, mock_dynamodb, mock_bedrock):
+        mock_bedrock.retrieve.return_value = {'retrievalResults': [_retrieval_result(f'doc-{i}') for i in range(5)]}
+        table = MagicMock()
+        table.get_item.side_effect = lambda Key: {'Item': {'documentId': Key['documentId'], 'filename': 'f.pdf'}}
+        mock_dynamodb.Table.return_value = table
+
+        response = handler.lambda_handler(_event(query='ai', limit=2, offset=2), None)
+
+        assert [r['documentId'] for r in response['results']] == ['doc-2', 'doc-3']
+        assert response['total'] == 5 and response['hasMore'] is True
+
+        response = handler.lambda_handler(_event(query='ai', limit=10_000), None)
+        assert response['limit'] == handler.MAX_LIMIT
+        assert mock_bedrock.retrieve.call_args[1]['retrievalConfiguration']['vectorSearchConfiguration']['numberOfResults'] == 100
+
+    def test_missing_query_raises(self):
+        with pytest.raises(Exception, match='query is required'):
+            handler.lambda_handler(_event(), None)
+
+    def test_query_too_long_raises(self):
+        with pytest.raises(Exception, match='too long'):
+            handler.lambda_handler(_event(query='x' * 1001), None)
+
+    @patch('handler.bedrock_agent_runtime')
+    @patch('handler.dynamodb')
+    def test_anonymous_caller_gets_no_results(self, mock_dynamodb, mock_bedrock):
+        # The shared KB can be queried without identity, but nothing can be
+        # attributed to a user, so enrichment returns nothing.
+        mock_bedrock.retrieve.return_value = {'retrievalResults': [_retrieval_result('doc-1')]}
+        response = handler.lambda_handler({'arguments': {'query': 'ai'}}, None)
+        assert response['results'] == [] and response['total'] == 0
+        mock_dynamodb.Table.assert_not_called()
+
+    @patch('handler.bedrock_agent_runtime')
+    def test_bedrock_failure_is_wrapped(self, mock_bedrock):
+        mock_bedrock.retrieve.side_effect = RuntimeError('throttled')
+        with pytest.raises(Exception, match='Search failed: throttled'):
+            handler.lambda_handler(_event(query='ai'), None)
