@@ -292,7 +292,7 @@ new CfnOutput(backend.stack, 'WafWebAclArn', {
 // BEDROCK INVOKE MODEL PERMISSIONS - For Claude/Titan Models
 // ============================================================================
 
-// Chat Handler - needs Claude Sonnet 5 for chat responses (interactive path)
+// Chat Handler - needs Claude Sonnet 5.5 for chat responses (interactive path)
 // Uses region-aware inference profile: us.* for US regions, eu.* for EU regions
 // Inference profiles are account-scoped; foundation models are cross-region routing targets
 const chatHandlerRegion = Stack.of(backend.chatHandler.resources.lambda).region;
@@ -345,7 +345,7 @@ backend.chatHandler.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
 // Prompt IDs will be set after BedrockPrompts stack is created (see line ~1540)
 
 // Prompt Manager can invoke Claude models for testing prompts
-// SECURITY FIX: Scope to the interactive model standard (Claude Sonnet 5),
+// SECURITY FIX: Scope to the interactive model standard (Claude Sonnet 5.5),
 // invoked via region-aware cross-region inference profiles to match the
 // chat assistant.
 const promptManagerRegion = Stack.of(backend.promptManager.resources.lambda).region;
@@ -1752,7 +1752,7 @@ backend.proposalGenerationAgentcore.addEnvironment('GRAPHQL_API_ID', backend.dat
 backend.proposalGenerationAgentcore.addEnvironment('AGENT_ARN_EXPORT_NAME', `${exportPrefix}-AgentCore-ProposalGenerationAgentArn`);
 backend.proposalGenerationAgentcore.addEnvironment('GUARDRAIL_ID', promptInjectionGuardrail.attrGuardrailId);
 backend.proposalGenerationAgentcore.addEnvironment('GUARDRAIL_VERSION', guardrailVersion.attrVersion);
-// PROPOSAL_MODEL_TIER: 'opus' uses Claude Opus 5 (200K context, better for large EU prompts)
+// PROPOSAL_MODEL_TIER: 'opus' uses Claude Opus 5.5 (1M context, better for large EU prompts)
 //                      'sonnet' uses Claude Sonnet 4.5 (200K context, faster/cheaper)
 // Change this value and redeploy to switch models without touching agent code.
 backend.proposalGenerationAgentcore.addEnvironment('PROPOSAL_MODEL_TIER', 'opus');

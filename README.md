@@ -17,7 +17,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-Amplify%20Gen2-3178C6?logo=typescript&logoColor=white)](https://typescriptlang.org)
 [![Node.js](https://img.shields.io/badge/Node.js-22.x-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)
 [![AWS Bedrock](https://img.shields.io/badge/AWS-Bedrock%20AgentCore-FF9900?logo=amazonaws&logoColor=white)](https://aws.amazon.com/bedrock/)
-[![Claude](https://img.shields.io/badge/Claude-Opus%205%20%7C%20Sonnet%205-D97757)](https://www.anthropic.com)
+[![Claude](https://img.shields.io/badge/Claude-Opus%205.5%20%7C%20Sonnet%205.5-D97757)](https://www.anthropic.com)
 [![React](https://img.shields.io/badge/React-18%20%2B%20Vite-61DAFB?logo=react&logoColor=white)](https://react.dev)
 [![CI](https://github.com/ATaylorAerospace/Grant_Assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/ATaylorAerospace/Grant_Assistant/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/tests-206%20passing-brightgreen?logo=pytest&logoColor=white)](#testing--ci)
@@ -93,8 +93,8 @@ flowchart TB
 
     subgraph MODELS["<b>🧠 Claude — Cross-Region Inference</b>"]
         direction LR
-        OPUS["✨ Opus 5<br/>generation + scoring"]:::model
-        SONNET["⚡ Sonnet 5<br/>interactive chat"]:::model
+        OPUS["✨ Opus 5.5<br/>generation + scoring"]:::model
+        SONNET["⚡ Sonnet 5.5<br/>interactive chat"]:::model
     end
 
     subgraph DATA["<b>🗄️ Data &amp; Search</b>"]
@@ -190,16 +190,16 @@ GROW2 ships **five AgentCore agents** wired together with an agent-to-agent (A2A
 |-------|------|-----------|--------|
 | 🇺🇸 **US Grants** | Searches US funding opportunities | Retrieval only | ✅ Stable |
 | 🇪🇺 **EU Grants** | Searches EU / Horizon funding | Retrieval only | ✅ Stable |
-| 📝 **Proposal Generation** | Drafts agency-aware proposal sections | `Sonnet 5` / `Opus 5` | ✅ Stable |
-| 📊 **Proposal Evaluator** | Scores and critiques generated drafts | `Opus 5` | ✅ Stable |
+| 📝 **Proposal Generation** | Drafts agency-aware proposal sections | `Sonnet 5.5` / `Opus 5.5` | ✅ Stable |
+| 📊 **Proposal Evaluator** | Scores and critiques generated drafts | `Opus 5.5` | ✅ Stable |
 | 📄 **PDF Converter** | Converts source documents for the KB | Retrieval only | ✅ Stable |
 
 ### 🧠 Model Strategy
 
 GROW2 standardizes on the latest Claude models with **region-aware cross-region inference profiles** (`us.*` in US regions, `eu.*` in EU regions):
 
-- **Claude Opus 5** — quality-critical generation and evaluation (proposal drafting, proposal scoring). Adaptive thinking is on by default, and the 1M-token context window comfortably holds a full proposal plus its source documents.
-- **Claude Sonnet 5** — interactive, latency-sensitive paths (chat assistant, prompt testing). Near-Opus quality on interactive work at Sonnet pricing.
+- **Claude Opus 5.5** — quality-critical generation and evaluation (proposal drafting, proposal scoring). Adaptive thinking is always on (it cannot be disabled on this generation), the 1M-token context window comfortably holds a full proposal plus its source documents, and it is priced below Opus 5 ($4 / $20 per MTok). Its default effort is `medium`, so the code pins `high` on these routes (`CLAUDE_EFFORT`).
+- **Claude Sonnet 5.5** — interactive, latency-sensitive paths (chat assistant, prompt testing). Near-Opus quality on interactive work at Sonnet pricing; set `CLAUDE_EFFORT=low` on the chat handler if time-to-first-token matters more than depth.
 
 IAM policies for each function are scoped to the specific inference-profile and foundation-model ARNs the function actually invokes.
 
@@ -207,13 +207,13 @@ IAM policies for each function are scoped to the specific inference-profile and 
 
 ### ⬆️ Upgrading to a Newer Claude Generation
 
-The code targets **Claude Opus 5** (`us.`/`eu.` `anthropic.claude-opus-5-v1`) and **Claude Sonnet 5** (`us.`/`eu.` `anthropic.claude-sonnet-5-v1`) through region-aware cross-region inference profiles, using the same profile-ID form this deployment already runs on. Model IDs are configuration, not call-site literals, and the IAM allowlists use model-family wildcards, so an upgrade is a config change rather than a code edit.
+The code targets **Claude Opus 5.5** (`us.`/`eu.` `anthropic.claude-opus-5-5-v1`) and **Claude Sonnet 5.5** (`us.`/`eu.` `anthropic.claude-sonnet-5-5-v1`) through region-aware cross-region inference profiles, using the same profile-ID form this deployment already runs on. Model IDs are configuration, not call-site literals, and the IAM allowlists use model-family wildcards, so an upgrade is a config change rather than a code edit.
 
 > ⚠️ **Confirm the profile IDs in your account before deploying.** This app runs on **Bedrock**, and Bedrock profile IDs can differ from Anthropic's first-party model names. List what your account exposes, and enable model access for both models in the Bedrock console:
 >
 > ```bash
 > aws bedrock list-inference-profiles --region <region> \
->   --query "inferenceProfileSummaries[?contains(inferenceProfileId,'opus-5') || contains(inferenceProfileId,'sonnet-5')].inferenceProfileId"
+>   --query "inferenceProfileSummaries[?contains(inferenceProfileId,'opus-5-5') || contains(inferenceProfileId,'sonnet-5-5')].inferenceProfileId"
 > ```
 >
 > If the IDs differ from the defaults above, set `CLAUDE_MODEL_ID` on the affected component (see *Runtime Configuration* below) — no code change is needed.
@@ -223,8 +223,8 @@ To move to a later generation:
 1. **Get the exact inference-profile ID** with the command above and enable model access.
 2. **Update the IAM allowlists** in `amplify/backend.ts` and `amplify/custom/agentcore-stack.ts` — they use per-region model-family wildcards (e.g. `anthropic.claude-opus-5*`), so change the family name.
 3. **Point the callers at the new ID** via `CLAUDE_MODEL_ID`, or the defaults in `bc/proposal-generation-agent/agent.py`, `bc/proposal-evaluator-agent/agent.py`, `amplify/functions/chat-handler/handler.py`, and `amplify/functions/prompt-manager/handler.py`.
-4. **Keep requests free of sampling parameters** — Opus 5 / Sonnet 5 reject `temperature`, `top_p`, and `top_k` with a 400, so none are sent.
-5. **Mind `max_tokens`** — these models think by default and thinking counts toward `max_tokens`; the defaults in *Runtime Configuration* already leave headroom. Their tokenizer also produces ~30% more tokens for the same text than the 4.6 generation, which the generator's `CHARS_PER_TOKEN` budget already assumes.
+4. **Keep requests free of sampling parameters and of a `thinking` field** — Opus 5.5 / Sonnet 5.5 reject `temperature`, `top_p`, `top_k`, `thinking: {type: "disabled"}` and thinking budgets with a 400, so none are sent; depth is controlled with `output_config.effort` (`CLAUDE_EFFORT`).
+5. **Mind `max_tokens` and effort** — these models always think and thinking counts toward `max_tokens`; the defaults in *Runtime Configuration* already leave headroom. Opus 5.5's default effort is `medium` (Opus 5's was `high`), which is why the generation and evaluation routes pin `high`. The tokenizer is unchanged from Opus 5 / Sonnet 5 (~30% more tokens than 4.6), which the generator's `CHARS_PER_TOKEN` budget already assumes.
 6. **Deploy-test** grant search, proposal generation, and evaluation in a non-production stack before promoting.
 
 * * *
@@ -579,7 +579,8 @@ The LLM call sites read their model and limits from environment variables, so tu
 | Variable | Component | Default | Purpose |
 |----------|-----------|---------|---------|
 | `PROPOSAL_MODEL_TIER` | Proposal Generation agent | `opus` | `opus` or `sonnet` — selects the region-aware inference profile used to draft sections |
-| `CLAUDE_MODEL_ID` | Proposal Generation agent · Proposal Evaluator agent · Chat Handler | *(per tier)* `us.`/`eu.` `anthropic.claude-opus-5-v1` or `…claude-sonnet-5-v1` | Overrides the inference-profile ID — set it if your account's profile IDs differ from the defaults (see *Upgrading to a Newer Claude Generation* above) |
+| `CLAUDE_MODEL_ID` | Proposal Generation agent · Proposal Evaluator agent · Chat Handler | *(per tier)* `us.`/`eu.` `anthropic.claude-opus-5-5-v1` or `…claude-sonnet-5-5-v1` | Overrides the inference-profile ID — set it if your account's profile IDs differ from the defaults (see *Upgrading to a Newer Claude Generation* above) |
+| `CLAUDE_EFFORT` | Proposal Generation agent · Proposal Evaluator agent · Chat Handler · Prompt Manager | `high` | Thinking depth (`low` · `medium` · `high` · `xhigh` · `max`) sent as `output_config.effort`. Pinned to `high` because Opus 5.5's own default is `medium`; drop the chat handler to `low` for faster replies |
 | `EVAL_MAX_TOKENS` | Proposal Evaluator agent | `16000` | Output cap for the structured evaluation JSON (thinking counts toward it) — a `max_tokens` stop is logged as truncation instead of failing silently |
 | `MAX_EVAL_CHARS` | Proposal Evaluator agent | `300000` | Plain-text cap on the proposal sent for evaluation; the whole proposal is graded, and any truncation is logged |
 | `MAX_FILE_SIZE_BYTES` | KB Document Processor | `52428800` (50 MB) | Server-side cap on the **real** S3 object size — oversized uploads are refused before download (the upload API only sees the client-declared size) |
