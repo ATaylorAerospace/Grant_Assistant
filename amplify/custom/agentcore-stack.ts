@@ -546,7 +546,8 @@ export class AgentCoreStack extends Stack {
 
         // Bedrock Inference Profile (for cross-region routing)
         // us.* profile for US regions, eu.* profile for EU regions
-        // Sonnet 5 (sonnet tier) and Opus 5 (opus tier / proposal + evaluator agents)
+        // Sonnet 5.5 (sonnet tier) and Opus 5.5 (opus tier / proposal + evaluator agents).
+        // The claude-sonnet-5* / claude-opus-5* family wildcards cover both the 5 and 5.5 ids.
         role.addToPolicy(new iam.PolicyStatement({
             actions: [
                 'bedrock:InvokeModel',
@@ -570,12 +571,12 @@ export class AgentCoreStack extends Stack {
                 'bedrock:InvokeModelWithResponseStream',
             ],
             resources: [
-                // Sonnet 5 - US regions (sonnet tier). Model-family wildcard covers
+                // Sonnet 5.5 - US regions (sonnet tier). Model-family wildcard covers
                 // whichever suffix form Bedrock resolves (-v1, -v1:0, or none).
                 `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-sonnet-5*`,
                 `arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-sonnet-5*`,
                 `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-sonnet-5*`,
-                // Sonnet 5 - EU regions
+                // Sonnet 5.5 - EU regions
                 `arn:aws:bedrock:eu-west-1::foundation-model/anthropic.claude-sonnet-5*`,
                 `arn:aws:bedrock:eu-west-2::foundation-model/anthropic.claude-sonnet-5*`,
                 `arn:aws:bedrock:eu-west-3::foundation-model/anthropic.claude-sonnet-5*`,
@@ -584,11 +585,11 @@ export class AgentCoreStack extends Stack {
                 `arn:aws:bedrock:eu-north-1::foundation-model/anthropic.claude-sonnet-5*`,
                 `arn:aws:bedrock:eu-south-1::foundation-model/anthropic.claude-sonnet-5*`,
                 `arn:aws:bedrock:eu-south-2::foundation-model/anthropic.claude-sonnet-5*`,
-                // Opus 5 - US cross-region destinations (us.* profile routes to these)
+                // Opus 5.5 - US cross-region destinations (us.* profile routes to these)
                 `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-opus-5*`,
                 `arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-opus-5*`,
                 `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-opus-5*`,
-                // Opus 5 - EU cross-region destinations (eu.* profile routes to these)
+                // Opus 5.5 - EU cross-region destinations (eu.* profile routes to these)
                 `arn:aws:bedrock:eu-west-1::foundation-model/anthropic.claude-opus-5*`,
                 `arn:aws:bedrock:eu-west-3::foundation-model/anthropic.claude-opus-5*`,
                 `arn:aws:bedrock:eu-central-1::foundation-model/anthropic.claude-opus-5*`,
@@ -738,7 +739,7 @@ export class AgentCoreStack extends Stack {
         }));
 
         // Bedrock Inference Profile (for cross-region routing)
-        // proposal-evaluator-agent invokes Opus 5 via the us.* / eu.* profile
+        // proposal-evaluator-agent invokes Opus 5.5 via the us.* / eu.* profile
         // (evaluation/scoring is a reasoning-heavy quality task)
         role.addToPolicy(new iam.PolicyStatement({
             actions: ['bedrock:InvokeModel'],

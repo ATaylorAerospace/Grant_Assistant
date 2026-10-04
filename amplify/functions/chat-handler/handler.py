@@ -18,15 +18,21 @@ s3 = boto3.client('s3')
 # eu-west-1 uses EU cross-region profile; all US regions use US cross-region profile
 _region = os.environ.get('AWS_REGION', 'us-east-1')
 # Cross-region inference-profile form this deployment already runs on. Confirm the
-# exact Sonnet 5 profile ID in your account (aws bedrock list-inference-profiles)
+# exact Sonnet 5.5 profile ID in your account (aws bedrock list-inference-profiles)
 # and set CLAUDE_MODEL_ID to override if it differs.
 CLAUDE_MODEL_ID = os.environ.get('CLAUDE_MODEL_ID') or (
-    'eu.anthropic.claude-sonnet-5-v1' if _region.startswith('eu-') else 'us.anthropic.claude-sonnet-5-v1'
+    'eu.anthropic.claude-sonnet-5-5-v1' if _region.startswith('eu-') else 'us.anthropic.claude-sonnet-5-5-v1'
 )
 
-# Reply length cap. Sonnet 5 thinks by default (adaptive) and thinking counts
-# toward max_tokens, so leave headroom; still a small non-streaming call.
+# Reply length cap. Sonnet 5.5 thinks by default (adaptive; it cannot be disabled)
+# and thinking counts toward max_tokens, so leave headroom; still a small
+# non-streaming call.
 CHAT_MAX_TOKENS = int(os.environ.get('CHAT_MAX_TOKENS', '8000'))
+
+# Thinking depth / latency / cost. Sonnet 5.5 defaults to 'high'; 'low' is the
+# recommended starting point for chat — set CLAUDE_EFFORT to tune (low | medium |
+# high | xhigh | max). Effort, not a thinking budget, is the control on this model.
+CLAUDE_EFFORT = os.environ.get('CLAUDE_EFFORT', 'high')
 
 # Environment variables - All required, no fallbacks
 CHAT_SESSIONS_TABLE = os.environ['CHAT_SESSIONS_TABLE']
@@ -335,6 +341,7 @@ Focus on empowering users to leverage the platform's AI-powered capabilities rat
             body=json.dumps({
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": CHAT_MAX_TOKENS,
+                "output_config": {"effort": CLAUDE_EFFORT},
                 "system": system_prompt,
                 "messages": conversation
             })

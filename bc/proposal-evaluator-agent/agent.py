@@ -85,18 +85,22 @@ print(f"[Proposal Evaluator] Using AWS region: {AWS_REGION}", flush=True)
 # Model is configured, not hardcoded at the call site, so upgrading it is a
 # config change (matches the proposal-generation agent). The default uses the
 # cross-region inference-profile form this deployment already runs on; confirm
-# the exact Opus 5 profile ID in your account with
+# the exact Opus 5.5 profile ID in your account with
 #   aws bedrock list-inference-profiles --region <region>
 # and set CLAUDE_MODEL_ID if it differs.
 _REGION_PREFIX = 'eu' if AWS_REGION.startswith('eu-') else 'us'
-CLAUDE_MODEL_ID = os.environ.get('CLAUDE_MODEL_ID', f'{_REGION_PREFIX}.anthropic.claude-opus-5-v1')
+CLAUDE_MODEL_ID = os.environ.get('CLAUDE_MODEL_ID', f'{_REGION_PREFIX}.anthropic.claude-opus-5-5-v1')
 # Evaluate the whole proposal, not the first 10k chars of HTML. ~300k chars of
 # plain text is well inside the model's context and covers any full proposal.
 MAX_EVAL_CHARS = int(os.environ.get('MAX_EVAL_CHARS', '300000'))
 # Structured JSON with per-criterion evidence overran the previous 2000-token
 # cap, truncating the JSON so parsing failed and the heuristic fallback ran.
-# Opus 5 thinks by default and thinking counts toward max_tokens, so leave headroom.
+# Opus 5.5 thinks by default (it cannot be disabled) and thinking counts toward
+# max_tokens, so leave headroom.
 EVAL_MAX_TOKENS = int(os.environ.get('EVAL_MAX_TOKENS', '16000'))
+# Opus 5.5 defaults to effort 'medium' (Opus 5 defaulted to 'high'). Evaluation is
+# quality-critical, so pin 'high' explicitly; CLAUDE_EFFORT overrides.
+CLAUDE_EFFORT = os.environ.get('CLAUDE_EFFORT', 'high')
 print(f"[Proposal Evaluator] ✅ CLAUDE_MODEL_ID: {CLAUDE_MODEL_ID}", flush=True)
 
 try:
@@ -398,6 +402,7 @@ Be critical but fair. Focus on what's actually in the proposal."""
             body=json.dumps({
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": EVAL_MAX_TOKENS,
+                "output_config": {"effort": CLAUDE_EFFORT},
                 "messages": [{
                     "role": "user",
                     "content": evaluation_prompt
