@@ -518,13 +518,12 @@ Results are written to `aggregated_results.txt`. Review findings and resolve cri
 
 ### Bedrock Prompts
 
-GROW2 uses **18 Amazon Bedrock managed prompts** to generate proposal sections, organized by funding agency. These are a best-effort starting point intended to be reviewed and updated by the researcher.
+GROW2 uses **15 Amazon Bedrock managed prompts** to generate proposal sections, organized by funding agency. These are a best-effort starting point intended to be reviewed and updated by the researcher.
 
 | Agency | Prompts | Scope |
 |--------|---------|-------|
 | NSF | Intellectual Merit, Broader Impacts, Implementation | Standard NSF research grants |
 | NIH | Significance & Innovation, Approach, Environment & Resources | R01-style research grants |
-| DOD | Technical Approach, Military Relevance, Execution Plan | BAA/SBIR research grants |
 | European Commission | Excellence, Impact, Implementation | Horizon Europe / MSCA |
 | DOE | Scientific Objectives, Technical Approach, Impact & Outcomes | Office of Science basic research |
 | NASA | Scientific/Technical Plan, NASA Relevance, Work Plan | ROSES / NOFO research grants |

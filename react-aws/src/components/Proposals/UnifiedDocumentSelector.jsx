@@ -310,7 +310,6 @@ const UnifiedDocumentSelector = ({ isOpen, onClose, onContinue }) => {
               <option value="">All Agencies</option>
               <option value="NSF">NSF</option>
               <option value="NIH">NIH</option>
-              <option value="DARPA">DARPA</option>
               <option value="DOE">DOE</option>
             </select>
             <button type="submit" disabled={!searchTerm.trim() || loading} className="search-btn">

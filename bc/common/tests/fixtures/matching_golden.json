@@ -18,10 +18,6 @@
      "EU": 0.3262072228007727,
      "US": 0.6020572773667265
     },
-    "us_flat_dod_small": {
-     "EU": 0.8982228971101249,
-     "US": 0.8982228971101249
-    },
     "us_flat_nih_cancer": {
      "EU": 0.9162784622027937,
      "US": 0.9162784622027937
@@ -56,10 +52,6 @@
      "EU": 0.11475409836065574,
      "US": 0.2883031301482702
     },
-    "us_flat_dod_small": {
-     "EU": 0.7026499942640817,
-     "US": 0.7026499942640817
-    },
     "us_flat_nih_cancer": {
      "EU": 0.7455731593662628,
      "US": 0.7455731593662628
@@ -90,7 +82,6 @@
      "isBiomedical": true,
      "isCancer": false,
      "isClimateChange": false,
-     "isDOD": false,
      "isDOE": false,
      "isEducation": false,
      "isEmbassy": false,
@@ -110,7 +101,6 @@
      "isBiomedical": true,
      "isCancer": false,
      "isClimateChange": false,
-     "isDOD": false,
      "isDOE": false,
      "isEducation": false,
      "isEmbassy": false,
@@ -132,7 +122,6 @@
      "isBiomedical": false,
      "isCancer": false,
      "isClimateChange": true,
-     "isDOD": false,
      "isDOE": false,
      "isEducation": false,
      "isEmbassy": false,
@@ -152,7 +141,6 @@
      "isBiomedical": false,
      "isCancer": false,
      "isClimateChange": true,
-     "isDOD": false,
      "isDOE": false,
      "isEducation": false,
      "isEmbassy": false,
@@ -174,7 +162,6 @@
      "isBiomedical": false,
      "isCancer": false,
      "isClimateChange": false,
-     "isDOD": false,
      "isDOE": false,
      "isEducation": true,
      "isEmbassy": false,
@@ -194,7 +181,6 @@
      "isBiomedical": false,
      "isCancer": false,
      "isClimateChange": false,
-     "isDOD": false,
      "isDOE": false,
      "isEducation": true,
      "isEmbassy": false,
@@ -216,7 +202,6 @@
      "isBiomedical": false,
      "isCancer": false,
      "isClimateChange": false,
-     "isDOD": false,
      "isDOE": false,
      "isEducation": false,
      "isEmbassy": false,
@@ -236,7 +221,6 @@
      "isBiomedical": true,
      "isCancer": false,
      "isClimateChange": false,
-     "isDOD": false,
      "isDOE": false,
      "isEducation": false,
      "isEmbassy": false,
@@ -245,48 +229,6 @@
      "isNIH": false,
      "isNSF": false,
      "isSmallBusiness": false
-    }
-   },
-   "us_flat_dod_small": {
-    "EU": {
-     "hasLargeAmount": false,
-     "hasMediumAmount": false,
-     "hasSmallAmount": true,
-     "isAI": true,
-     "isAlzheimers": false,
-     "isBasicScience": false,
-     "isBiomedical": false,
-     "isCancer": false,
-     "isClimateChange": false,
-     "isDOD": true,
-     "isDOE": false,
-     "isEducation": true,
-     "isEmbassy": false,
-     "isEngineering": true,
-     "isInternational": false,
-     "isNIH": false,
-     "isNSF": false,
-     "isSmallBusiness": true
-    },
-    "US": {
-     "hasLargeAmount": false,
-     "hasMediumAmount": false,
-     "hasSmallAmount": true,
-     "isAI": true,
-     "isAlzheimers": false,
-     "isBasicScience": false,
-     "isBiomedical": false,
-     "isCancer": false,
-     "isClimateChange": false,
-     "isDOD": true,
-     "isDOE": false,
-     "isEducation": true,
-     "isEmbassy": false,
-     "isEngineering": true,
-     "isInternational": false,
-     "isNIH": false,
-     "isNSF": false,
-     "isSmallBusiness": true
     }
    },
    "us_flat_nih_cancer": {
@@ -300,7 +242,6 @@
      "isBiomedical": true,
      "isCancer": true,
      "isClimateChange": false,
-     "isDOD": false,
      "isDOE": false,
      "isEducation": false,
      "isEmbassy": false,
@@ -320,7 +261,6 @@
      "isBiomedical": true,
      "isCancer": true,
      "isClimateChange": false,
-     "isDOD": false,
      "isDOE": false,
      "isEducation": false,
      "isEmbassy": false,
@@ -342,7 +282,6 @@
      "isBiomedical": false,
      "isCancer": false,
      "isClimateChange": false,
-     "isDOD": false,
      "isDOE": false,
      "isEducation": false,
      "isEmbassy": false,
@@ -362,7 +301,6 @@
      "isBiomedical": false,
      "isCancer": false,
      "isClimateChange": false,
-     "isDOD": false,
      "isDOE": false,
      "isEducation": false,
      "isEmbassy": false,
@@ -384,7 +322,6 @@
      "isBiomedical": false,
      "isCancer": false,
      "isClimateChange": false,
-     "isDOD": false,
      "isDOE": false,
      "isEducation": true,
      "isEmbassy": false,
@@ -404,7 +341,6 @@
      "isBiomedical": false,
      "isCancer": false,
      "isClimateChange": false,
-     "isDOD": false,
      "isDOE": false,
      "isEducation": true,
      "isEmbassy": false,
@@ -426,7 +362,6 @@
      "isBiomedical": false,
      "isCancer": false,
      "isClimateChange": false,
-     "isDOD": false,
      "isDOE": false,
      "isEducation": false,
      "isEmbassy": true,
@@ -526,28 +461,6 @@
     "genomics health": {
      "EU": 0.0,
      "US": 0.7250000000000001
-    }
-   },
-   "us_flat_dod_small": {
-    "": {
-     "EU": 0.5,
-     "US": 0.5
-    },
-    "artificial intelligence materials": {
-     "EU": 0.0,
-     "US": 0.0
-    },
-    "cancer immunotherapy": {
-     "EU": 0.0,
-     "US": 0.0
-    },
-    "climate cities": {
-     "EU": 0.0,
-     "US": 0.0
-    },
-    "genomics health": {
-     "EU": 0.0,
-     "US": 0.0
     }
    },
    "us_flat_nih_cancer": {
@@ -683,13 +596,6 @@
     "title": "Global health genomics"
    },
    "grantId": "HORIZON-4"
-  },
-  "us_flat_dod_small": {
-   "agency": "DOD-ONR",
-   "amount": 75000.0,
-   "description": "Small business innovation research for navy robotics training.",
-   "grantId": "3",
-   "title": "SBIR Phase I: Robotics"
   },
   "us_flat_nih_cancer": {
    "agency": "National Institutes of Health",

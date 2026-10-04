@@ -357,7 +357,7 @@ echo "Deleting Amazon Bedrock Prompts..."
 PROMPTS=$(aws bedrock-agent list-prompts \
   --region "$DELETE_REGION" \
   --max-results 100 \
-  --query 'promptSummaries[?contains(name, `NSF-Prompt`) || contains(name, `NIH-Prompt`) || contains(name, `DOD-Prompt`) || contains(name, `European-Commission-Prompt`)].id' \
+  --query 'promptSummaries[?contains(name, `NSF-Prompt`) || contains(name, `NIH-Prompt`) || contains(name, `European-Commission-Prompt`)].id' \
   --output text 2>/dev/null || echo "")
 if [ -n "$PROMPTS" ]; then
   for prompt_id in $PROMPTS; do

@@ -249,7 +249,6 @@ def generate_claude_response(message: str, chat_history: List[Dict], user_email:
 🎯 FUNDING AGENCIES & PROGRAMS:
 • NIH (National Institutes of Health) - All institutes and centers (NCI, NIMH, NHLBI, etc.)
 • NSF (National Science Foundation) - All directorates and programs
-• DOD/DARPA - Defense research and advanced projects
 • DOE (Department of Energy) - Basic and applied energy research
 • NASA - Space and aeronautics research
 • European funding (Horizon Europe, ERC, Marie Curie)
@@ -467,7 +466,7 @@ def is_help_question(message: str) -> bool:
     exclusions = [
         'grant writing', 'proposal writing', 'research proposal', 'write a proposal',
         'funding opportunities', 'available grants', 'grant deadlines',
-        'nih grants', 'nsf grants', 'dod grants',
+        'nih grants', 'nsf grants',
         'budget', 'timeline', 'methodology',
         'weather', 'cooking', 'general knowledge',
         'quantum computing theory', 'machine learning theory', 'biomedical research theory'
