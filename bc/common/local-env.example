@@ -1,0 +1,41 @@
+# bc/common/local-env.example
+#
+# Copy to bc/common/local-env (git-ignored) and fill in values from YOUR deployed
+# GROW2 stack. bc/invoke-local.sh sources this file before starting an agent.
+#
+# Where to find the values:
+#   - react-aws/src/amplify_outputs.json (after ./scripts/fetch-outputs.sh <region>)
+#       data.url            -> APPSYNC_ENDPOINT
+#       data.aws_region     -> AWS_REGION
+#   - AWS Console -> AppSync -> your API -> Settings            -> GRAPHQL_API_ID
+#   - AWS Console -> DynamoDB -> Tables (names start with the model name, e.g. Proposal-...)
+#   - AWS Console -> S3 (bucket names contain "proposalsbucket", "documentbucket", "eucache")
+#   - AWS Console -> Bedrock -> Knowledge bases                 -> KNOWLEDGE_BASE_ID
+#   - AWS Console -> Bedrock AgentCore -> Agent runtimes (ARNs)  -> *_ARN
+#
+# These mirror the environment the CDK stack sets on each runtime
+# (amplify/custom/agentcore-stack.ts). Only the ones the agent you run needs matter.
+
+AWS_REGION=us-east-1
+
+# AppSync (all agents that write results back)
+APPSYNC_ENDPOINT=https://xxxxxxxxxxxxxxxxxxxxxxxxxx.appsync-api.us-east-1.amazonaws.com/graphql
+GRAPHQL_API_ID=xxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# proposal-generation-agent
+PROPOSALS_TABLE=Proposal-xxxxxxxxxxxxxxxxxxxxxxxxxx-NONE
+PROPOSALS_BUCKET=amplify-grow2-xxxx-proposalsbucket-xxxxxxxx
+DOCUMENT_TABLE=Document-xxxxxxxxxxxxxxxxxxxxxxxxxx-NONE
+DOCUMENT_BUCKET=amplify-grow2-xxxx-documentbucket-xxxxxxxx
+KNOWLEDGE_BASE_ID=XXXXXXXXXX
+PDF_CONVERTER_ARN=arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/pdf_converter_agent-xxxxxxxxxx
+PROPOSAL_EVALUATOR_ARN=arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/proposal_evaluator_agent-xxxxxxxxxx
+# PROPOSAL_MODEL_TIER=opus        # or sonnet
+# CLAUDE_MODEL_ID=                # override the resolved inference-profile id
+
+# proposal-evaluator-agent
+# EVAL_MAX_TOKENS=16000
+# MAX_EVAL_CHARS=300000
+
+# eu-grants-search-agent-v2 (also accepts euCacheBucket in the payload)
+EU_CACHE_BUCKET=amplify-grow2-xxxx-eucachebucket-xxxxxxxx

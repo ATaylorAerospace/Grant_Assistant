@@ -1,7 +1,10 @@
-FROM public.ecr.aws/docker/library/python:3.11-slim
+# Shared layout for all GROW2 agents (see bc/invoke-local.sh for running locally):
+# one base image and the same layer order so CodeBuild's Docker layer cache is
+# reused across deploys. This agent additionally needs WeasyPrint's native libs.
+FROM public.ecr.aws/docker/library/python:3.12-slim
 
-# Install system dependencies for WeasyPrint
-RUN apt-get update && apt-get install -y \
+# System libraries for WeasyPrint (HTML -> PDF)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libpango-1.0-0 \
     libpangoft2-1.0-0 \
     libharfbuzz0b \
@@ -15,10 +18,12 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
+# Dependency layer — only rebuilt when requirements.txt changes.
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Application layer — rebuilt on every code change (cheap).
 COPY agent.py .
 
-# AgentCore agents don't need port exposure - they use SDK protocol
+EXPOSE 8080
 CMD ["python", "agent.py"]

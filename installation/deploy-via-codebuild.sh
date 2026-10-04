@@ -150,6 +150,14 @@ env:
   variables:
     AWS_REGION: "PLACEHOLDER_REGION"
     AWS_DEFAULT_REGION: "PLACEHOLDER_REGION"
+# Local caches persist on the build host between runs of this project
+# (project is created with LOCAL_SOURCE_CACHE + LOCAL_DOCKER_LAYER_CACHE below).
+# node_modules is restored so `npm ci` is near-instant, and the five agent
+# images reuse their pip layers instead of rebuilding from scratch.
+cache:
+  paths:
+    - 'node_modules/**/*'
+    - '/root/.npm/**/*'
 phases:
   install:
     runtime-versions:
@@ -244,6 +252,14 @@ ENV_JSON='{
   "privilegedMode": true
 }'
 
+# Local caching: Docker layer cache makes unchanged agent images a no-op rebuild,
+# source cache keeps the paths listed under `cache:` in the buildspec. Best-effort —
+# CodeBuild may land the build on a fresh host, in which case it just rebuilds.
+CACHE_JSON='{
+  "type": "LOCAL",
+  "modes": ["LOCAL_DOCKER_LAYER_CACHE", "LOCAL_SOURCE_CACHE", "LOCAL_CUSTOM_CACHE"]
+}'
+
 if [ -z "$PROJECT_EXISTS" ] || [ "$PROJECT_EXISTS" = "None" ]; then
   echo "  Creating project $CB_PROJECT..."
   aws codebuild create-project \
@@ -252,6 +268,7 @@ if [ -z "$PROJECT_EXISTS" ] || [ "$PROJECT_EXISTS" = "None" ]; then
     --source "$SOURCE_JSON" \
     --artifacts '{"type": "NO_ARTIFACTS"}' \
     --environment "$ENV_JSON" \
+    --cache "$CACHE_JSON" \
     --service-role "$CB_ROLE_ARN" \
     --timeout-in-minutes 90 \
     > /dev/null
@@ -263,6 +280,7 @@ else
     --region "$DEPLOY_REGION" \
     --source "$SOURCE_JSON" \
     --environment "$ENV_JSON" \
+    --cache "$CACHE_JSON" \
     > /dev/null
   echo "  ✅ Project updated"
 fi

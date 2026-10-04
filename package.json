@@ -4,7 +4,11 @@
   "description": "This project demonstrates AWS Bedrock AgentCore examples to support research grant matchmaking. The system includes agents that can search for relevant grants based on user profiles and research interests.",
   "main": "lambda-server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "typecheck": "tsc -p tsconfig.ci.json",
+    "test": "./scripts/test-lambdas.sh",
+    "test:lambdas": "./scripts/test-lambdas.sh",
+    "fetch-outputs": "./scripts/fetch-outputs.sh",
+    "sandbox": "ampx sandbox"
   },
   "repository": {
     "type": "git",

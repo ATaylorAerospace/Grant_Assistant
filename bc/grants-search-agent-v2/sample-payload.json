@@ -1,0 +1,10 @@
+{
+  "sessionId": "local-session-1",
+  "query": "thermal transport in nanostructured materials",
+  "cognitoUserId": "local-test-user",
+  "filters": {},
+  "sources": ["GRANTS_GOV"],
+  "tableNames": {},
+  "appsyncEndpoint": "",
+  "graphqlApiId": ""
+}

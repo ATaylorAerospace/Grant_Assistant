@@ -488,6 +488,71 @@ See the [Troubleshooting Guide](install_docs/cleanup/TROUBLESHOOTING.md) and [Kn
 
 ## 👩‍💻 Development
 
+### Local Development
+
+The CloudShell path above is the **zero-install first deploy**. It is not the development loop — a full CodeBuild deploy is 35–55 minutes. Day-to-day changes use three faster tiers, each validated against the previous one. All of them need a deployed stack to exist once (any region from the table above); after that you rarely redeploy to try something.
+
+| Tier | What runs | Feedback time | Use it for |
+|------|-----------|---------------|------------|
+| **0 — Unit tests & type-check** | `pytest` per Lambda, `tsc` over `amplify/` | seconds | Logic changes, refactors, CDK typos |
+| **1 — Run locally against the deployed backend** | an agent on `localhost:8080`, or the React app on `localhost:3000` | seconds–minutes | Agent prompts/scoring, UI work, API wiring |
+| **2 — Per-developer cloud sandbox** | `npx ampx sandbox` (watch mode) | ~30 s per Lambda change | Lambda handlers, schema, IAM — anything that must run *in* AWS |
+
+The same checks run on every pull request in GitHub Actions (`.github/workflows/ci.yml`): backend type-check, Python byte-compile of every handler and agent, the Lambda unit tests, and a React build — so a broken change is caught in ~3 minutes instead of after a 45-minute deploy.
+
+**Tier 0 — unit tests and type-check**
+
+```bash
+npm ci                     # once; installs the Amplify/CDK toolchain
+npm run typecheck          # tsc over amplify/**/*.ts (tsconfig.ci.json)
+npm test                   # ./scripts/test-lambdas.sh — every amplify/functions/*/test_*.py
+npm test -- kb-search      # one function's suite
+```
+
+`scripts/test-lambdas.sh` runs each function's suite in its own process from inside its directory (several share the file name `test_handler.py`) and exports the placeholder environment the handlers read at import time. New Lambda tests follow the existing `amplify/functions/kb-*/test_handler.py` pattern: `unittest.mock` around the boto3 clients, no real AWS calls.
+
+> The four existing `kb-*` suites predate recent handler changes and currently fail on signature/behaviour drift; the CI job runs them but is marked `continue-on-error` until they are brought back in sync.
+
+**Tier 1 — run an agent or the UI locally**
+
+Every AgentCore agent is a `BedrockAgentCoreApp`; `python agent.py` serves the same HTTP contract as the managed runtime (`POST /invocations`, `GET /ping`) on port 8080. The harness starts an agent in its own virtualenv, waits for `/ping`, posts a payload, prints the response, and stops it:
+
+```bash
+cp bc/common/local-env.example bc/common/local-env   # once; fill in values from your stack
+./bc/invoke-local.sh proposal-evaluator-agent         # uses bc/<agent>/sample-payload.json
+./bc/invoke-local.sh proposal-generation-agent my-payload.json
+./bc/invoke-local.sh grants-search-agent-v2 --keep    # leave it running, then curl localhost:8080/invocations
+```
+
+Agents call real AWS services (Bedrock, DynamoDB, S3, AppSync), so run this with credentials for the account the stack is deployed in. `bc/common/local-env` carries the per-stack names and endpoints the CDK stack would otherwise set as environment variables (`amplify/custom/agentcore-stack.ts`); each agent's `sample-payload.json` documents the payload shape its entrypoint expects.
+
+For the React app, pull the deployed stack's `amplify_outputs.json` and start the dev server — it talks to the deployed Cognito/AppSync/Lambda backend, with hot reload for the UI:
+
+```bash
+./scripts/fetch-outputs.sh us-east-1   # → react-aws/src/amplify_outputs.json (git-ignored)
+cd react-aws && npm ci --legacy-peer-deps && npm start
+```
+
+**Tier 2 — per-developer sandbox**
+
+From a machine with Docker (the agent images are ARM64 — Apple Silicon, a Graviton dev box, or `docker buildx` with QEMU emulation), Amplify Gen 2's sandbox deploys a personal copy of the backend and then watches the tree, hot-swapping Lambda code without a CloudFormation deploy:
+
+```bash
+npm run sandbox            # npx ampx sandbox — first run is a full deploy, later edits are ~30 s
+```
+
+Stop it with Ctrl-C; `npx ampx sandbox delete` removes the personal stack. A sandbox is a separate deployment with its own resource names, so it must live in a region that does not already host a GROW2 stack from this account (see *Important Disclaimers*).
+
+**What a change needs**
+
+| You changed | Validate with | Then |
+|-------------|---------------|------|
+| A Lambda handler | Tier 0 tests → Tier 2 sandbox | `./installation/deploy-grow2-bootstrap.sh <region>` |
+| An agent (`bc/*/agent.py`) | Tier 1 harness | deploy script (rebuilds only that image; the CodeBuild project keeps a Docker layer cache, so unchanged agents are no-ops) |
+| React UI | Tier 1 `npm start` | deploy script, then trigger the seeder (see *Updating the Stack*) |
+| CDK / IAM / schema | `npm run typecheck` → Tier 2 sandbox | deploy script |
+| Bedrock prompts (`config/bedrock-prompts/`) | — | deploy script (CDK diffs only changed prompts) |
+
 ### Replacing the Left Hand Nav Logo
 
 The left sidebar displays an institution logo below the Sign Out button:

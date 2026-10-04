@@ -1,0 +1,6 @@
+{
+  "html": "<html><head><title>Test Proposal</title></head><body><h1>Test Grant Proposal</h1><p>Local harness check for the PDF converter agent.</p></body></html>",
+  "proposalId": "local-test-proposal",
+  "userId": "local-test-user",
+  "bucket": ""
+}

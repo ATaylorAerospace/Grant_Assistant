@@ -1,0 +1,11 @@
+{
+  "sessionId": "local-session-1",
+  "query": "thermal transport in nanostructured materials",
+  "cognitoUserId": "local-test-user",
+  "filters": {},
+  "sources": ["EU_FUNDING"],
+  "tableNames": {},
+  "euCacheBucket": "",
+  "appsyncEndpoint": "",
+  "graphqlApiId": ""
+}
