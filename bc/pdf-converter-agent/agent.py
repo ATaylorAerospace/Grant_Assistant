@@ -137,8 +137,10 @@ def invoke(payload: dict) -> dict:
         html_content = payload.get('html')
         proposal_id = payload.get('proposalId')
         user_id = payload.get('userId')
-        bucket = payload.get('bucket', 'amplify-grow2-hesct-sandbo-proposalsbucket4b0168c3-yyrxsdlfyybc')
+        bucket = payload.get('bucket')  # proposals bucket, passed by the proposal-generation agent
         
+        if not bucket:
+            raise ValueError("Missing required parameter: bucket")
         if not html_content:
             raise ValueError("Missing required parameter: html")
         if not proposal_id:

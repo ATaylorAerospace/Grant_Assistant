@@ -79,7 +79,8 @@
 #     - React application (built and deployed)
 #   
 #   Demo Data (automatic):
-#     - Test user: test_user@example.com / Password123!
+#     - Test user: test_user@example.com (random, unusable password unless
+#       SEED_TEST_USER_PASSWORD is set — see README Step 4)
 #     - User profile with AI/ML research keywords
 #     - Agent configuration
 #     - Agent discovery run (so test_user has grants populated on first login)
@@ -88,7 +89,7 @@
 #   1. Check CloudFormation outputs for Amplify URL
 #   2. Wait for CodeBuild seeding to complete (~8-10 minutes)
 #   3. Access Amplify URL in browser
-#   4. Login with: test_user@example.com / Password123!
+#   4. Set a password for test_user@example.com (README Step 4) and log in
 #   5. Verify grants are populated
 #
 # MONITORING:

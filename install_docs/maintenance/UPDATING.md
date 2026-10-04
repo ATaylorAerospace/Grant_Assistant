@@ -92,7 +92,7 @@ However, there are cases where you need the seeder to run again:
 **To manually trigger the seeder:**
 
 1. Go to AWS Console → **CodeBuild** → **Build projects**
-2. Find `grow2-seeder-{account}-{region}-{deployment id}` (e.g. `grow2-seeder-483272795794-us-east-1-a1b2c3d4`)
+2. Find `grow2-seeder-{account}-{region}-{deployment id}` (e.g. `grow2-seeder-123456789012-us-east-1-a1b2c3d4`)
 3. Click **Start build**
 4. Wait for **Succeeded** (~8-10 min)
 

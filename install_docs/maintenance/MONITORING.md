@@ -30,7 +30,7 @@ GROW2 uses Amazon CloudWatch for logging and monitoring. This guide helps you:
 ### Access CloudWatch Logs
 
 1. Go to **AWS Console** → **CloudWatch** → **Logs** → **Log groups**
-2. Filter by your stack name (e.g., `amplify-grow2-hesct-sandbox`)
+2. Filter by your stack name (e.g., `amplify-grow2-<identifier>-sandbox-<id>`)
 3. Select a log group to view logs
 4. Use **Log Insights** for advanced queries
 
