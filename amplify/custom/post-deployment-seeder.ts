@@ -521,7 +521,7 @@ except:
         ],
         
         # Agencies (both US and EU for multi-region discovery)
-        "agencies": ["NSF", "DOD", "DARPA", "NIH", "Horizon Europe", "Digital Europe Programme"],
+        "agencies": ["NSF", "NIH", "Horizon Europe", "Digital Europe Programme"],
         
         # Technical skills
         "tech_skills": ["Python", "TensorFlow", "PyTorch", "C++", "CUDA"],
@@ -549,7 +549,7 @@ except:
         "use_structured_filters": True,
         "grantsgov_filters": {
             "oppStatuses": "posted",
-            "agencies": "DOD|NSF|DARPA",
+            "agencies": "NSF|NIH",
             "eligibilities": "06|20",
             "fundingCategories": "ST",
             "fundingInstruments": "G",
@@ -562,7 +562,7 @@ except:
         "last_updated": datetime.utcnow().isoformat() + "Z",
         "orcid_id": "0000-0002-1234-5678",
         "preferred_languages": ["en"],
-        "preferred_programs": ["darpa.mil", "sam.gov"],
+        "preferred_programs": ["nsf.gov", "grants.gov"],
         "submission_deadline": "180 days"
     }
     table.put_item(Item=profile)

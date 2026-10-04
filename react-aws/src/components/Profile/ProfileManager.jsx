@@ -522,7 +522,7 @@ const ProfileManager = () => {
   ];
 
   const availableAgencies = [
-    'NIH', 'NSF', 'DOD', 'DOE', 'NASA', 'EPA', 'USDA', 'DHS', 'HHS-NIH11',
+    'NIH', 'NSF', 'DOE', 'NASA', 'EPA', 'USDA', 'DHS', 'HHS-NIH11',
     'Horizon Europe', 'Digital Europe', 'Connecting Europe', 'LIFE', 'EUAF'
   ];
 
@@ -663,7 +663,7 @@ const ProfileManager = () => {
           </div>
 
           <div style={{ marginBottom: '8px' }}>
-            <strong style={{ color: '#fd7e14' }}>⭐ Preferred Agencies (8% boost):</strong> Funding sources you want to target (e.g., NSF, NIH, DARPA).
+            <strong style={{ color: '#fd7e14' }}>⭐ Preferred Agencies (8% boost):</strong> Funding sources you want to target (e.g., NSF, NIH, DOE).
           </div>
 
           <div style={{ marginBottom: '8px' }}>

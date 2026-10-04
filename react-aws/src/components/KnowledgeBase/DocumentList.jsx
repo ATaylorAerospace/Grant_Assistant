@@ -207,9 +207,6 @@ const DocumentList = () => {
                 <optgroup label="🇺🇸 US Federal Agencies">
                   <option value="NSF">NSF - National Science Foundation</option>
                   <option value="NIH">NIH - National Institutes of Health</option>
-                  <option value="DOD">DOD - Department of Defense</option>
-                  <option value="DARPA">DARPA - Defense Advanced Research Projects Agency</option>
-                  <option value="ONR">ONR - Office of Naval Research</option>
                   <option value="DOE">DOE - Department of Energy</option>
                   <option value="NASA">NASA - National Aeronautics and Space Administration</option>
                   <option value="USDA">USDA - Department of Agriculture</option>

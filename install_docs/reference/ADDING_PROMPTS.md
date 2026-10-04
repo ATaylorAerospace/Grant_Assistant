@@ -1,6 +1,6 @@
 # Adding Custom Bedrock Prompts
 
-GROW2 ships with 18 prompts covering NSF, NIH, DOD, European Commission, DOE (Office of Science), and NASA. These are a best-effort starting point — researchers are expected to customize them and add new ones for agencies or program types not covered.
+GROW2 ships with 15 prompts covering NSF, NIH, European Commission, DOE (Office of Science), and NASA. These are a best-effort starting point — researchers are expected to customize them and add new ones for agencies or program types not covered.
 
 ## How Prompts Work
 
@@ -35,7 +35,6 @@ The proposal generation agent looks up prompts by agency prefix. For example, if
 |--------|--------------------------|-------|
 | NSF | `NSF` | Standard research grants |
 | NIH | `NIH` | R01-style research grants |
-| DOD / DARPA / ONR / Army / Navy / Air Force | `DOD` | BAA/SBIR research grants |
 | European Commission / Horizon Europe | `European-Commission` | Horizon Europe / MSCA |
 | DOE Office of Science | `DOE` | BES, BER, HEP, NP, FES, ASCR basic research |
 | NASA | `NASA` | ROSES / NOFO research grants |

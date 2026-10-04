@@ -43,7 +43,7 @@ const schema = a
         keywords: a.string().array(), // Keywords for Bayesian matching
         optimized_keywords: a.string().array(), // Optimized keywords for better matching
         research_areas: a.string().array(), // Research areas for domain matching
-        agencies: a.string().array(), // Preferred agencies: ["NIH", "NSF", "DOD"]
+        agencies: a.string().array(), // Preferred agencies: ["NIH", "NSF", "DOE"]
 
         // Additional Profile Fields
         researchInterests: a.string().array(),

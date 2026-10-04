@@ -75,7 +75,6 @@ The system uses agency-specific AI prompts tailored to each funder's requirement
 |--------|----------------|
 | NIH | Approach, Significance & Innovation, Environment & Resources |
 | NSF | Intellectual Merit, Broader Impacts, Implementation |
-| DOD | Technical Approach, Military Relevance, Execution Plan |
 | European Commission | Implementation (Horizon Europe) |
 
 For grants from other agencies, the system uses a general proposal prompt.

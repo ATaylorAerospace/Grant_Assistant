@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 # Natural-language → grants.gov parameter mappings (kept for filter parsing).
 AGENCY_CODE_MAPPINGS_ONLY = {
     "hhs": "HHS-NIH11",
-    "dod": "DOD",
     "doc": "DOC",
     "nasa": "NASA",
     "neh": "NEH",
@@ -34,9 +33,6 @@ AGENCY_CODE_MAPPINGS_ONLY = {
     "cdc": "HHS-CDC",
     "ahrq": "HHS-AHRQ",
     "fema": "DHS-DHS",
-    "onr": "DOD-ONR",
-    "navair": "DOD-ONR-AIR",
-    "darpa dso": "DOD-DARPA-DSO",
     "nsf": "NSF",
 }
 

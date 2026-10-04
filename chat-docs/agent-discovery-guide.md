@@ -31,7 +31,7 @@ Before configuring discovery, make sure your profile is complete — the agent u
    - **Budget Range**: Desired funding amounts
    - **Duration**: Preferred project length
    - **Geographic Scope**: Where you can apply
-   - **Agencies**: Preferred funding agencies (NSF, NIH, DOD, Horizon Europe, etc.)
+   - **Agencies**: Preferred funding agencies (NSF, NIH, DOE, Horizon Europe, etc.)
 
 The more complete your profile, the better the grant matching.
 
@@ -88,7 +88,7 @@ Your **Current Configuration** summary is shown at the bottom of the page so you
 
 ### US Grants (Grants.gov)
 
-Agencies covered include NIH, NSF, DOD/DARPA, DOE, NASA, USDA, and 20+ other federal agencies.
+Agencies covered include NIH, NSF, DOE, NASA, USDA, and 20+ other federal agencies.
 
 ### EU Grants (Horizon Europe)
 

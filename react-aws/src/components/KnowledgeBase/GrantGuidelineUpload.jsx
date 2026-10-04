@@ -17,9 +17,6 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const US_AGENCIES = [
   { value: 'NSF', label: 'NSF - National Science Foundation' },
   { value: 'NIH', label: 'NIH - National Institutes of Health' },
-  { value: 'DOD', label: 'DOD - Department of Defense' },
-  { value: 'DARPA', label: 'DARPA - Defense Advanced Research Projects Agency' },
-  { value: 'ONR', label: 'ONR - Office of Naval Research' },
   { value: 'DOE', label: 'DOE - Department of Energy' },
   { value: 'NASA', label: 'NASA - National Aeronautics and Space Administration' },
   { value: 'USDA', label: 'USDA - Department of Agriculture' },
@@ -53,9 +50,6 @@ const EU_AGENCIES = [
 const GRANT_TYPES = {
   'NIH': ['R01', 'R21', 'R03', 'K99/R00', 'F31', 'F32', 'T32', 'U01', 'P01', 'R15', 'R35', 'Other'],
   'NSF': ['Standard Grant', 'CAREER', 'RAPID', 'EAGER', 'SBIR/STTR', 'Graduate Fellowship', 'Other'],
-  'DOD': ['MURI', 'DURIP', 'YIP', 'SBIR/STTR', 'Other'],
-  'DARPA': ['Young Faculty Award', 'Director\'s Fellowship', 'Seedling', 'Other'],
-  'ONR': ['Young Investigator', 'DURIP', 'MURI', 'Other'],
   'DOE': ['Early Career', 'SBIR/STTR', 'ARPA-E', 'Other'],
   'NASA': ['ROSES', 'SBIR/STTR', 'Space Technology', 'Other'],
   'USDA': ['AFRI', 'NIFA', 'SBIR', 'Other'],
@@ -88,7 +82,7 @@ const SECTIONS = [
   { value: 'preliminary-studies', label: 'Preliminary Studies' },
   { value: 'broader-impacts', label: 'Broader Impacts (NSF)' },
   { value: 'intellectual-merit', label: 'Intellectual Merit (NSF)' },
-  { value: 'technical-approach', label: 'Technical Approach (DARPA)' },
+  { value: 'technical-approach', label: 'Technical Approach' },
   { value: 'general-guidelines', label: 'General Guidelines' },
   { value: 'formatting', label: 'Formatting Requirements' },
   { value: 'other', label: 'Other' }

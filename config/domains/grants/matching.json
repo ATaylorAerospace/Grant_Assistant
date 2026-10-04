@@ -28,10 +28,6 @@
       "relevant": 0.28,
       "irrelevant": 0.14
     },
-    "isDOD": {
-      "relevant": 0.25,
-      "irrelevant": 0.12
-    },
     "isDOE": {
       "relevant": 0.22,
       "irrelevant": 0.12
@@ -141,19 +137,6 @@
       "anyOf": [
         "nsf",
         "national science foundation"
-      ]
-    },
-    "isDOD": {
-      "fields": [
-        "agency"
-      ],
-      "anyOf": [
-        "dod",
-        "department of defense",
-        "darpa",
-        "army",
-        "navy",
-        "air force"
       ]
     },
     "isDOE": {

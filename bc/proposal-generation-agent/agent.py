@@ -774,7 +774,7 @@ def detect_agency(grant_data: Dict[str, Any]) -> str:
     2. DynamoDB document filtering
     3. OpenSearch metadata filtering
     
-    Returns: Normalized agency code (NSF, NIH, DOD, etc.) matching UI dropdown values
+    Returns: Normalized agency code (NSF, NIH, DOE, etc.) matching UI dropdown values
     """
     logger.info(f"[Proposal Agent] Detecting agency from grant data")
     
@@ -800,11 +800,6 @@ def detect_agency(grant_data: Dict[str, Any]) -> str:
     
     if 'NSF' in agency_upper or 'NATIONAL SCIENCE FOUNDATION' in agency_upper or 'U.S. NATIONAL SCIENCE FOUNDATION' in agency_upper:
         normalized = 'NSF'
-        logger.info(f"[Proposal Agent] ✅ Normalized: '{agency}' → '{normalized}'")
-        return normalized
-    
-    if any(kw in agency_upper for kw in ['DARPA', 'DOD', 'DEPARTMENT OF DEFENSE', 'NAVY', 'NAVAL', 'AIR FORCE', 'ARMY', 'MARINES', 'MARINE CORPS', 'ONR', 'OFFICE OF NAVAL RESEARCH', 'DEFENSE ADVANCED', 'DEFENSE THREAT', 'DEFENSE LOGISTICS', 'DEFENSE HEALTH', 'WASHINGTON HEADQUARTERS', 'PENTAGON', 'MATERIEL COMMAND', 'RESEARCH LABORATORY', 'AFOSR', 'AFRL']):
-        normalized = 'DOD'
         logger.info(f"[Proposal Agent] ✅ Normalized: '{agency}' → '{normalized}'")
         return normalized
     
@@ -1362,7 +1357,7 @@ def get_bedrock_prompts(agency: str) -> Dict[str, Dict[str, Any]]:
     
     # If no prompts found, fail clearly — do not silently generate a useless one-page abstract
     if not prompts:
-        supported = "NSF, NIH, DOD, DOE, NASA, European-Commission"
+        supported = "NSF, NIH, DOE, NASA, European-Commission"
         raise RuntimeError(
             f"No proposal prompts found for agency '{agency}'. "
             f"Supported agencies: {supported}. "

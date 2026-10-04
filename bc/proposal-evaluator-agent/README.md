@@ -185,6 +185,6 @@ aws logs tail /aws/bedrock-agentcore/runtimes/proposal_evaluator_agent --follow
 ## Future Enhancements
 
 - Comparative analysis against successful past proposals
-- Agency-specific evaluation rules (NSF vs NIH vs DOD)
+- Agency-specific evaluation rules (NSF vs NIH vs DOE)
 - Iterative improvement suggestions
 - Success prediction ML model
