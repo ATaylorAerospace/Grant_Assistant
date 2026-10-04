@@ -26,6 +26,8 @@ Dependencies:
 import re
 import logging
 import httpx
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '..'))  # local runs: bc/ on path
 import json
 import html
 import threading
@@ -73,51 +75,22 @@ BAYESIAN_SCORING_AVAILABLE = False
 apply_dual_scoring = None
 
 # ============================================================================
-# SIMPLE KEYWORD MAPPINGS (no spacy needed)
+# SOURCE CONNECTOR — grants.gov lives in common/sources (domain layer)
 # ============================================================================
+from common.sources.grants_gov import (  # noqa: E402
+    GrantsGovSource,
+    AGENCY_CODE_MAPPINGS_ONLY,
+    STATUS_MAPPINGS,
+    FUNDING_INSTRUMENT_MAPPINGS,
+)
 
-AGENCY_CODE_MAPPINGS_ONLY = {
-    "hhs": "HHS-NIH11",
-    "dod": "DOD",
-    "doc": "DOC",
-    "nasa": "NASA",
-    "neh": "NEH",
-    "usda": "USDA",
-    "dhs": "DHS",
-    "dol": "DOL",
-    "dot": "DOT",
-    "va": "VA",
-    "hud": "HUD",
-    "epa": "EPA",
-    "ed": "ED",
-    "nih": "HHS-NIH11",
-    "cdc": "HHS-CDC",
-    "ahrq": "HHS-AHRQ",
-    "fema": "DHS-DHS",
-    "onr": "DOD-ONR",
-    "navair": "DOD-ONR-AIR",
-    "darpa dso": "DOD-DARPA-DSO",
-    "nsf": "NSF",
-}
-
-STATUS_MAPPINGS = {
-    "posted": "posted",
-    "closed": "closed",
-    "archived": "archived",
-    "forecasted": "forecasted",
-    "active": "posted",
-    "open": "posted",
-}
-
-FUNDING_INSTRUMENT_MAPPINGS = {
-    "grants": "G",
-    "grant": "G",
-    "cooperative agreements": "CA",
-    "cooperative agreement": "CA",
-    "contracts": "PC",
-    "contract": "PC",
-    "procurement": "PC",
-}
+_source = GrantsGovSource()
+# Names kept so existing call sites and logs read the same.
+search_grants_sync = _source.search
+fetch_grant_details = _source.fetch
+call_grants_api = _source.call_search_api
+parse_search_filters = GrantsGovSource.parse_search_filters
+convert_grant_to_ui_format = GrantsGovSource.to_ui_format
 
 # ============================================================================
 # MAIN ENTRYPOINT - Returns immediately, spawns background thread
@@ -356,205 +329,6 @@ def invoke(payload):
 # ============================================================================
 # GRANTS.GOV API FUNCTIONS (same as V1)
 # ============================================================================
-
-def parse_search_filters(user_input):
-    """Convert natural language to API filters using simple keyword matching"""
-    # Simplified version without spacy
-    user_lower = user_input.lower()
-    
-    filters = {
-        "keyword": user_input.strip(),
-        "agencies": "",
-        "fundingCategories": "",
-        "eligibilities": "",
-        "oppStatuses": "posted",
-        "fundingInstruments": "",
-        "aln": "",
-        "oppNum": "",
-        "dateRange": ""
-    }
-    
-    return filters
-
-def call_grants_api(payload):
-    """Call grants.gov API"""
-    base_url = "https://api.grants.gov/v1/api/search2"
-    
-    try:
-        logger.info(f"[V2] Calling grants.gov API: {base_url}")
-        
-        headers = {
-            "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0 (compatible; GrantsAgentV2/1.0)"
-        }
-        
-        with httpx.Client(timeout=30.0, headers=headers) as client:
-            response = client.post(base_url, json=payload)
-            response.raise_for_status()
-        
-        result = response.json()
-        
-        if result.get("errorcode", 0) != 0:
-            error_msg = result.get('msg', 'Unknown error')
-            raise Exception(f"API Error: {error_msg}")
-        
-        data = result.get("data", {})
-        grants = data.get("oppHits", [])
-        total_found = data.get("hitCount", 0)
-        
-        logger.info(f"[V2] API returned {len(grants)} grants (total: {total_found})")
-        
-        return data
-        
-    except Exception as e:
-        logger.error(f"[V2] API call failed: {str(e)}")
-        raise
-
-def fetch_grant_details(opp_id: str) -> dict:
-    """Fetch detailed grant information"""
-    try:
-        url = "https://api.grants.gov/v1/api/fetchOpportunity"
-        payload = {"opportunityId": int(opp_id)}
-        headers = {
-            "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0 (compatible; GrantsAgentV2/1.0)"
-        }
-        
-        with httpx.Client(timeout=10.0, headers=headers) as client:
-            response = client.post(url, json=payload)
-            if response.status_code == 200:
-                result = response.json()
-                if result.get("errorcode", 0) != 0:
-                    return {"error": f"API Error: {result.get('msg', 'Unknown error')}"}
-                return result.get("data", {})
-            else:
-                return {"error": f"HTTP {response.status_code}"}
-    except Exception as e:
-        return {"error": str(e)}
-
-def search_grants_sync(keyword: str, filters: dict = None) -> List[Dict[str, Any]]:
-    """
-    Synchronous grant search (called from background thread)
-    Returns list of grants in UI format
-    """
-    try:
-        logger.info(f"[V2] Searching for: {keyword}")
-        
-        # Parse filters
-        parsed_filters = parse_search_filters(keyword)
-        
-        # Build API payload
-        payload = {
-            "rows": 25,
-            "startRecordNum": 0,
-            "resultType": "json",
-            "searchOnly": False,
-            "keyword": parsed_filters["keyword"],
-            "oppStatuses": parsed_filters["oppStatuses"]
-        }
-        
-        # Call API
-        api_response = call_grants_api(payload)
-        raw_grants = api_response.get("oppHits", [])
-        
-        # Convert to UI format
-        grants_with_details = []
-        
-        for i, grant in enumerate(raw_grants[:25], 1):
-            logger.info(f"[V2] Processing grant {i}/{len(raw_grants[:25])}: {grant.get('id', 'Unknown')}")
-            
-            grant_data = {
-                "searchData": {
-                    "id": grant.get("id", ""),
-                    "number": grant.get("number", ""),
-                    "title": grant.get("title", ""),
-                    "agencyCode": grant.get("agencyCode", ""),
-                    "agency": grant.get("agency", ""),
-                    "openDate": grant.get("openDate", ""),
-                    "closeDate": grant.get("closeDate", ""),
-                    "oppStatus": grant.get("oppStatus", ""),
-                    "docType": grant.get("docType", ""),
-                    "cfdaList": grant.get("cfdaList", [])
-                },
-                "detailsData": None,
-                "error": None
-            }
-            
-            # Fetch details
-            opp_id = grant.get("id")
-            if opp_id:
-                try:
-                    details = fetch_grant_details(opp_id)
-                    if details and not details.get("error"):
-                        grant_data["detailsData"] = details
-                    else:
-                        grant_data["error"] = details.get("error", "Failed to fetch details")
-                except Exception as e:
-                    grant_data["error"] = str(e)
-            
-            # Convert to UI format
-            ui_grant = convert_grant_to_ui_format(grant_data)
-            grants_with_details.append(ui_grant)
-        
-        logger.info(f"[V2] Converted {len(grants_with_details)} grants to UI format")
-        
-        return grants_with_details
-        
-    except Exception as e:
-        logger.error(f"[V2] Search failed: {str(e)}")
-        raise
-
-def convert_grant_to_ui_format(grant_data: Dict[str, Any]) -> Dict[str, Any]:
-    """Convert agent grant format to UI format (same as V1)"""
-    try:
-        search_data = grant_data.get('searchData', {})
-        details_data = grant_data.get('detailsData', {})
-        
-        grant_id = search_data.get('id', '')
-        title = search_data.get('title', 'No title')
-        agency = search_data.get('agency', 'Unknown agency')
-        open_date = search_data.get('openDate', '')
-        close_date = search_data.get('closeDate', '')
-        
-        synopsis = details_data.get('synopsis', {})
-        description = synopsis.get('synopsisDesc', 'No description available')
-        
-        # Extract amount
-        amount = 0
-        amount_str = synopsis.get('awardCeiling', '0')
-        if amount_str and str(amount_str).lower() != 'none':
-            try:
-                clean_amount = str(amount_str).replace('$', '').replace(',', '').strip()
-                if clean_amount:
-                    amount = float(clean_amount)
-            except (ValueError, TypeError):
-                amount = 0
-        
-        ui_grant = {
-            'grantId': grant_id,
-            'title': title,
-            'agency': agency,
-            'amount': amount,
-            'deadline': close_date,
-            'description': description,
-            'eligibility': synopsis.get('applicantEligibilityDesc', 'See grant details'),
-            'applicationProcess': f"Contact: {synopsis.get('agencyContactEmail', '')}",
-            # Don't set relevanceScore here - let Bayesian matcher set it
-            # If no Bayesian scoring, it will be set to 0.5 by default
-            'matchedKeywords': [],
-            'tags': [],
-            'contactEmail': synopsis.get('agencyContactEmail', ''),
-            'contactPhone': synopsis.get('agencyContactPhone', ''),
-            'openDate': open_date,
-            'opportunityNumber': search_data.get('number', ''),
-            'source': 'GRANTS_GOV'
-        }
-        
-        return ui_grant
-        
-    except Exception as e:
-        logger.error(f"[V2] Error converting grant: {str(e)}")
-        raise
 
 # ============================================================================
 # DYNAMODB FUNCTIONS - Agent writes directly (no processor Lambda)

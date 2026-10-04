@@ -28,6 +28,8 @@ Dependencies:
 import re
 import logging
 import httpx
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '..'))  # local runs: bc/ on path
 import json
 import html
 import threading
@@ -290,266 +292,24 @@ def invoke(payload):
 # S3 CACHE READING (NO API FALLBACK)
 # ============================================================================
 
+# ============================================================================
+# SOURCE CONNECTOR — the EU portal lives in common/sources (domain layer)
+# ============================================================================
+from common.sources.eu_funding_portal import EuFundingPortalSource, clean_html  # noqa: E402,F401
+
+_source = EuFundingPortalSource()
+
+
 def read_grants_from_s3_cache(query: str, filters: dict = None, cache_bucket: str = None) -> List[Dict[str, Any]]:
-    """
-    Read EU grants from S3 cache (NO API fallback per user requirement)
-    
-    S3 cache is updated nightly by eu-grants-cache-downloader Lambda.
-    If S3 fails, it's an infrastructure issue that should be alerted.
-    
-    Args:
-        query: Search query string
-        filters: Search filters dict
-        cache_bucket: S3 bucket name (passed from Lambda payload)
-    """
-    try:
-        if not cache_bucket:
-            raise ValueError("cache_bucket parameter is required")
-        
-        logger.info(f"[EU V2] Reading from S3 cache: {cache_bucket}/eu_grants_latest.json")
-        
-        # Read from S3
-        response = s3.get_object(Bucket=cache_bucket, Key='eu_grants_latest.json')
-        cache_data = json.loads(response['Body'].read())
-        
-        # Get cache metadata
-        metadata = response.get('Metadata', {})
-        download_time = metadata.get('download_time', 'unknown')
-        grant_count = metadata.get('grant_count', 'unknown')
-        
-        logger.info(f"[EU V2] ✅ Loaded from S3 cache (downloaded: {download_time}, grants: {grant_count})")
-        
-        # Extract grants
-        funding_data = cache_data.get("fundingData", {})
-        all_grants = funding_data.get("GrantTenderObj", [])
-        
-        logger.info(f"[EU V2] 📊 Loaded {len(all_grants)} total grants/tenders from S3 cache")
-        
-        # Filter grants (type=1 only, status, keyword, etc.)
-        filtered_grants = filter_eu_grants(all_grants, query, filters)
-        
-        # Fetch details for top grants
-        grants_with_details = fetch_grant_details_for_top_matches(filtered_grants[:25])
-        
-        # Convert to UI format
-        ui_grants = [convert_eu_grant_to_ui_format(g) for g in grants_with_details]
-        
-        return ui_grants
-        
-    except Exception as e:
-        logger.error(f"[EU V2] ❌ S3 cache read failed: {str(e)}")
-        # NO API FALLBACK - this is an infrastructure issue
-        raise Exception(f"S3 cache read failed - infrastructure issue: {str(e)}")
+    """Search the nightly S3 cache (no live-API fallback). Kept as the agent's call site name."""
+    return _source.search(query, filters, cache_bucket=cache_bucket)
 
-def filter_eu_grants(all_grants: List[Dict], query: str, filters: dict) -> List[Dict]:
-    """Filter EU grants by type, status, keyword, etc. - matches V1 comprehensive search"""
-    # Filter by type (grants only, type=1)
-    grants_only = [g for g in all_grants if g.get('type') == 1]
-    logger.info(f"[EU V2] Type filter: {len(all_grants)} → {len(grants_only)}")
-    
-    # Filter by status (open, forthcoming)
-    status_filtered = []
-    for grant in grants_only:
-        status_obj = grant.get("status", {})
-        status_abbr = status_obj.get("abbreviation", "")
-        if status_abbr in ["Open", "Forthcoming"]:
-            status_filtered.append(grant)
-    
-    logger.info(f"[EU V2] Status filter: {len(grants_only)} → {len(status_filtered)}")
-    
-    # Filter by keyword - COMPREHENSIVE SEARCH matching V1
-    if query:
-        keyword_filtered = []
-        query_lower = query.lower()
-        
-        # Keyword expansion: "artificial intelligence" should also match "-AI-" in identifiers
-        search_terms = [query_lower]
-        if query_lower == "artificial intelligence":
-            search_terms.append("-ai-")
-        
-        # CRITICAL: For multi-word queries, search for the EXACT PHRASE, not individual words
-        # This prevents matching "machine" in "Man Machine interface" when searching for "machine learning"
-        is_phrase_search = ' ' in query_lower
-        
-        for grant in status_filtered:
-            match_found = False
-            
-            # Search in title, callTitle, identifier (text fields)
-            title = grant.get('title', '').lower()
-            call_title = grant.get('callTitle', '').lower()
-            identifier = grant.get('identifier', '').lower()
-            
-            # Search in tags array (matches portal behavior)
-            tags = grant.get('tags', [])
-            tags_text = ' '.join(tags).lower() if isinstance(tags, list) else str(tags).lower()
-            
-            # Search in keywords array (CRITICAL - matches portal behavior)
-            keywords = grant.get('keywords', [])
-            keywords_text = ' '.join(keywords).lower() if isinstance(keywords, list) else str(keywords).lower()
-            
-            # Search in flags array (CRITICAL - portal uses this!)
-            flags = grant.get('flags', [])
-            flags_text = ' '.join(flags).lower() if isinstance(flags, list) else str(flags).lower()
-            
-            # Search in framework programme (portal searches here too - used for agency)
-            framework_programme = grant.get('frameworkProgramme', {})
-            if isinstance(framework_programme, dict):
-                framework_text = (framework_programme.get('description', '') + ' ' + 
-                                framework_programme.get('abbreviation', '')).lower()
-            else:
-                framework_text = str(framework_programme).lower()
-            
-            # Check all search terms against all fields
-            for term in search_terms:
-                if (term in title or term in call_title or term in identifier or 
-                    term in tags_text or term in keywords_text or term in flags_text or
-                    term in framework_text):
-                    match_found = True
-                    break
-            
-            if match_found:
-                keyword_filtered.append(grant)
-        
-        logger.info(f"[EU V2] Keyword filter: {len(status_filtered)} → {len(keyword_filtered)}")
-        return keyword_filtered[:100]  # Limit to 100
-    
-    return status_filtered[:100]
 
-def fetch_grant_details_for_top_matches(grants: List[Dict]) -> List[Dict]:
-    """Fetch detailed info from Topic Details API for top grants"""
-    grants_with_details = []
-    
-    for i, grant in enumerate(grants, 1):
-        identifier = grant.get('identifier', '')
-        logger.info(f"[EU V2] Fetching details {i}/{len(grants)}: {identifier}")
-        
-        try:
-            details = fetch_eu_grant_details(identifier)
-            if details and not details.get('error'):
-                grant['_detailsData'] = details.get('grantDetails', {})
-                grant['hasDetailedInfo'] = True
-            else:
-                grant['hasDetailedInfo'] = False
-        except Exception as e:
-            logger.warning(f"[EU V2] Failed to fetch details for {identifier}: {e}")
-            grant['hasDetailedInfo'] = False
-        
-        grants_with_details.append(grant)
-    
-    return grants_with_details
-
-def fetch_eu_grant_details(identifier: str) -> Dict:
-    """Fetch grant details from Topic Details API"""
-    try:
-        identifier_lower = identifier.lower()
-        url = f"https://ec.europa.eu/info/funding-tenders/opportunities/data/topicDetails/{identifier_lower}.json"
-        
-        with httpx.Client(timeout=30.0) as client:
-            response = client.get(url)
-            response.raise_for_status()
-        
-        data = response.json()
-        topic_details = data.get("TopicDetails", {})
-        
-        if not topic_details:
-            return {"error": f"No details found for {identifier}"}
-        
-        # Add portal URL
-        topic_details["portalUrl"] = f"https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/topic-details/{identifier}"
-        
-        return {"grantDetails": topic_details}
-        
-    except Exception as e:
-        logger.error(f"[EU V2] Error fetching details for {identifier}: {e}")
-        return {"error": str(e)}
-
-def convert_eu_grant_to_ui_format(grant: Dict[str, Any]) -> Dict[str, Any]:
-    """Convert EU grant to UI format (similar to V1 processor)"""
-    try:
-        # Extract basic info
-        grant_id = grant.get('identifier', grant.get('reference', ''))
-        title = grant.get('title', 'No title')
-        
-        # Extract agency from frameworkProgramme
-        framework_programme = grant.get('frameworkProgramme', {})
-        if isinstance(framework_programme, dict):
-            agency = (framework_programme.get('description') or 
-                     framework_programme.get('abbreviation') or 
-                     'European Commission')
-        else:
-            agency = 'European Commission'
-        
-        # Extract deadline
-        deadline = ''
-        deadline_dates = grant.get('deadlineDatesLong', [])
-        if deadline_dates and deadline_dates[0]:
-            try:
-                dt = datetime.fromtimestamp(deadline_dates[0] / 1000)
-                deadline = dt.strftime('%Y-%m-%d')
-            except (ValueError, TypeError, OverflowError, OSError):
-                pass  # unparseable deadline: leave blank
-        
-        # Extract description
-        details_data = grant.get('_detailsData', {})
-        if details_data and details_data.get('description'):
-            description = clean_html(details_data['description'])
-        else:
-            tags = grant.get('tags', [])
-            description = f"Topics: {', '.join(tags[:5])}" if tags else 'No description'
-        
-        # Extract amount from budget overview
-        amount = None
-        if details_data and details_data.get('budgetOverviewJSONItem'):
-            budget_map = details_data['budgetOverviewJSONItem'].get('budgetTopicActionMap', {})
-            for topic_id, actions in budget_map.items():
-                for action in actions:
-                    max_contrib = action.get('maxContribution')
-                    if max_contrib:
-                        amount = max_contrib
-                        break
-        
-        return {
-            'grantId': grant_id,
-            'title': title,
-            'agency': agency,
-            'amount': amount,
-            'deadline': deadline,
-            'description': description,
-            'eligibility': 'EU eligibility requirements apply',
-            'applicationProcess': f"Apply through EU portal",
-            'source': 'EU_FUNDING',
-            'hasDetailedInfo': grant.get('hasDetailedInfo', False),
-            'euReference': grant.get('reference', ''),
-            'euIdentifier': grant.get('identifier', ''),
-            # euFrameworkProgramme is a String field in the schema. The raw EU API
-            # value is a dict ({description, abbreviation}); extract a string (as
-            # done for `agency` above), otherwise the AppSync mutation is rejected
-            # and the EuGrantRecord silently fails to persist.
-            'euFrameworkProgramme': (
-                (framework_programme.get('abbreviation') or framework_programme.get('description') or '')
-                if isinstance(framework_programme, dict) else (framework_programme or '')
-            ),
-            'euStatus': grant.get('status', {}).get('abbreviation', '') if isinstance(grant.get('status'), dict) else grant.get('status', '')
-        }
-        
-    except Exception as e:
-        logger.error(f"[EU V2] Error converting grant: {e}")
-        return {
-            'grantId': f"error_{hash(str(grant))}",
-            'title': grant.get('title', 'Error'),
-            'agency': 'European Commission',
-            'description': 'Error processing grant',
-            'source': 'EU_FUNDING'
-        }
-
-def clean_html(html_text: str) -> str:
-    """Remove HTML tags and clean up text"""
-    if not html_text:
-        return ''
-    text = re.sub(r'<[^>]+>', '', html_text)
-    text = text.replace('&nbsp;', ' ').replace('&amp;', '&')
-    text = ' '.join(text.split())
-    return text
+# Names kept for existing callers/tests.
+filter_eu_grants = _source.filter_grants
+fetch_grant_details_for_top_matches = _source.fetch_details_for
+fetch_eu_grant_details = _source.fetch
+convert_eu_grant_to_ui_format = EuFundingPortalSource.to_ui_format
 
 # ============================================================================
 # DYNAMODB FUNCTIONS - Agent writes directly via AppSync

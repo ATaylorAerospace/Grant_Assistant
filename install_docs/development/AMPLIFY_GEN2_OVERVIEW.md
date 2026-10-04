@@ -287,10 +287,14 @@ GROW2 uses a custom deployment script instead of `npx ampx sandbox`:
 # - Takes 45-60 minutes
 ```
 
-**For local React development:**
+**For day-to-day development you do not redeploy.** The README's *Local Development* section documents the faster loop:
+
 ```bash
-cd react-aws
-npm start
+npm run typecheck && npm test            # Tier 0: tsc over amplify/, pytest per Lambda (seconds)
+./bc/invoke-local.sh <agent>             # Tier 1: run an AgentCore agent on localhost:8080
+./scripts/fetch-outputs.sh us-east-1     # Tier 1: pull amplify_outputs.json, then
+cd react-aws && npm start                #         run the UI against the deployed backend
+npm run sandbox                          # Tier 2: personal `ampx sandbox` with Lambda hot-swap
 ```
 
 The React app connects to your deployed AWS backend (not a local backend).

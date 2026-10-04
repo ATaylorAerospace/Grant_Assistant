@@ -85,20 +85,32 @@ if [ -z "$CB_ROLE_ARN" ] || [ "$CB_ROLE_ARN" = "None" ]; then
     }' \
     --query 'Role.Arn' --output text)
 
-  # Full admin access — CodeBuild is deploying the entire stack
-  aws iam attach-role-policy \
-    --role-name "$CB_ROLE_NAME" \
-    --policy-arn "arn:aws:iam::aws:policy/AdministratorAccess"
-
   echo "  ✅ Role created: $CB_ROLE_ARN"
-  echo "  Waiting for role to propagate..."
-  sleep 15
+  ROLE_CREATED=1
 else
   echo "  ✅ Role exists: $CB_ROLE_ARN"
+  ROLE_CREATED=0
+fi
+
+# Permissions for the deploy. Default: AdministratorAccess (CodeBuild deploys the
+# entire stack). Set GROW2_DEPLOYER_POLICY_ARN to the scoped policy from
+# installation/iam/grow2-deployer-role.yaml to run without admin — see
+# installation/iam/README.md.
+ADMIN_POLICY_ARN="arn:aws:iam::aws:policy/AdministratorAccess"
+if [ -n "${GROW2_DEPLOYER_POLICY_ARN:-}" ]; then
+  echo "  Using scoped deployer policy: $GROW2_DEPLOYER_POLICY_ARN"
+  aws iam attach-role-policy --role-name "$CB_ROLE_NAME" \
+    --policy-arn "$GROW2_DEPLOYER_POLICY_ARN"
+  aws iam detach-role-policy --role-name "$CB_ROLE_NAME" \
+    --policy-arn "$ADMIN_POLICY_ARN" 2>/dev/null || true
+else
   # Ensure AdministratorAccess is attached (may be missing if stacks were manually deleted)
-  aws iam attach-role-policy \
-    --role-name "$CB_ROLE_NAME" \
-    --policy-arn "arn:aws:iam::aws:policy/AdministratorAccess" 2>/dev/null || true
+  aws iam attach-role-policy --role-name "$CB_ROLE_NAME" \
+    --policy-arn "$ADMIN_POLICY_ARN" 2>/dev/null || true
+fi
+if [ "$ROLE_CREATED" = "1" ]; then
+  echo "  Waiting for role to propagate..."
+  sleep 15
 fi
 echo ""
 
@@ -150,6 +162,19 @@ env:
   variables:
     AWS_REGION: "PLACEHOLDER_REGION"
     AWS_DEFAULT_REGION: "PLACEHOLDER_REGION"
+    # dev (default) or prod — see "Environments" in the README
+    GROW2_ENV: "PLACEHOLDER_ENV"
+    # Optional sandbox identifier; empty keeps the default (OS user), i.e. the
+    # same stack name existing installs already have.
+    GROW2_IDENTIFIER: "PLACEHOLDER_IDENT"
+# Local caches persist on the build host between runs of this project
+# (project is created with LOCAL_SOURCE_CACHE + LOCAL_DOCKER_LAYER_CACHE below).
+# node_modules is restored so `npm ci` is near-instant, and the five agent
+# images reuse their pip layers instead of rebuilding from scratch.
+cache:
+  paths:
+    - 'node_modules/**/*'
+    - '/root/.npm/**/*'
 phases:
   install:
     runtime-versions:
@@ -165,7 +190,7 @@ phases:
   build:
     commands:
       - echo "Deploying Grow2 stack (ARM64 native build)..."
-      - npx ampx sandbox --once --outputs-out-dir /tmp
+      - npx ampx sandbox --once --outputs-out-dir /tmp ${GROW2_IDENTIFIER:+--identifier "$GROW2_IDENTIFIER"}
   post_build:
     commands:
       - echo "Build status $CODEBUILD_BUILD_SUCCEEDING"
@@ -189,7 +214,7 @@ phases:
         aws s3 sync react-aws/ s3://$APP_BUCKET/react-aws-source/ --region PLACEHOLDER_REGION --exclude "node_modules/*" --exclude "build/*" --exclude ".amplify/*" --exclude "*.log"
         echo "SUCCESS react-aws source uploaded"
         echo "Uploading bedrock prompts to app bucket..."
-        aws s3 sync config/bedrock-prompts/ s3://$APP_BUCKET/bedrock-prompts/ --region PLACEHOLDER_REGION
+        aws s3 sync config/domains/grants/prompts/ s3://$APP_BUCKET/bedrock-prompts/ --region PLACEHOLDER_REGION
         echo "SUCCESS bedrock prompts uploaded"
         echo "Uploading import script to app bucket..."
         aws s3 cp python/import_bedrock_prompts.py s3://$APP_BUCKET/scripts/import_bedrock_prompts.py --region PLACEHOLDER_REGION || true
@@ -219,6 +244,8 @@ SPEC_TEMPLATE
 # Substitute placeholders with actual values (safe - no shell expansion issues)
 BUILDSPEC="${BUILDSPEC//PLACEHOLDER_REGION/$DEPLOY_REGION}"
 BUILDSPEC="${BUILDSPEC//PLACEHOLDER_ACCOUNT/$ACCOUNT_ID}"
+BUILDSPEC="${BUILDSPEC//PLACEHOLDER_ENV/${GROW2_ENV:-dev}}"
+BUILDSPEC="${BUILDSPEC//PLACEHOLDER_IDENT/${GROW2_IDENTIFIER:-}}"
 
 # ============================================================================
 # Step 4: Create/update CodeBuild project
@@ -244,6 +271,14 @@ ENV_JSON='{
   "privilegedMode": true
 }'
 
+# Local caching: Docker layer cache makes unchanged agent images a no-op rebuild,
+# source cache keeps the paths listed under `cache:` in the buildspec. Best-effort —
+# CodeBuild may land the build on a fresh host, in which case it just rebuilds.
+CACHE_JSON='{
+  "type": "LOCAL",
+  "modes": ["LOCAL_DOCKER_LAYER_CACHE", "LOCAL_SOURCE_CACHE", "LOCAL_CUSTOM_CACHE"]
+}'
+
 if [ -z "$PROJECT_EXISTS" ] || [ "$PROJECT_EXISTS" = "None" ]; then
   echo "  Creating project $CB_PROJECT..."
   aws codebuild create-project \
@@ -252,6 +287,7 @@ if [ -z "$PROJECT_EXISTS" ] || [ "$PROJECT_EXISTS" = "None" ]; then
     --source "$SOURCE_JSON" \
     --artifacts '{"type": "NO_ARTIFACTS"}' \
     --environment "$ENV_JSON" \
+    --cache "$CACHE_JSON" \
     --service-role "$CB_ROLE_ARN" \
     --timeout-in-minutes 90 \
     > /dev/null
@@ -263,6 +299,7 @@ else
     --region "$DEPLOY_REGION" \
     --source "$SOURCE_JSON" \
     --environment "$ENV_JSON" \
+    --cache "$CACHE_JSON" \
     > /dev/null
   echo "  ✅ Project updated"
 fi

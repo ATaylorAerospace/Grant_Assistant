@@ -11,6 +11,9 @@ import logging
 import traceback
 from typing import Dict, List, Any, Optional
 import boto3
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '..'))  # local runs: bc/ on path
+from common import domain_config  # noqa: E402
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 from decimal import Decimal
@@ -181,75 +184,31 @@ def extract_grant_features(grant: Dict[str, Any]) -> Dict[str, bool]:
     return features
 
 def get_researcher_priors(profile: Dict[str, Any]) -> float:
-    """Get prior probability based on researcher type and experience level"""
-    
+    """Prior probability from researcher type / expertise — weights in config/domains/<domain>/matching.json"""
+    cfg = domain_config.matching()
     researcher_type = profile.get('researcherType', '').lower()
     expertise_level = profile.get('expertise_level', '').lower()
-    
-    # Base priors by researcher type
-    base_priors = {
-        'biomedical': 0.20,      # 20% base relevance for biomedical researchers
-        'engineering': 0.15,     # 15% base relevance for engineering researchers  
-        'social_science': 0.10,  # 10% base relevance for social science researchers
-        'basic_science': 0.12,   # 12% base relevance for basic science researchers
-        'computer_science': 0.15, # 15% base relevance for CS researchers
-    }
-    
-    base_prior = base_priors.get(researcher_type, 0.10)
-    
-    # Adjust based on expertise level
-    expertise_multipliers = {
-        'expert': 1.2,      # Experts get 20% boost
-        'advanced': 1.1,    # Advanced get 10% boost
-        'intermediate': 1.0, # No change
-        'beginner': 0.9     # Beginners get 10% reduction
-    }
-    
-    multiplier = expertise_multipliers.get(expertise_level, 1.0)
-    
-    # Also consider if they're an early investigator
-    early_investigator = profile.get('early_investigator', '').lower() == 'true'
-    if early_investigator:
-        multiplier *= 1.1  # Early investigators get additional 10% boost
-    
-    return min(base_prior * multiplier, 0.30)  # Cap at 30% prior
+
+    priors = cfg['researcherPriors']
+    base_prior = priors.get(researcher_type, priors.get('default', 0.10))
+
+    multipliers = cfg['expertiseMultipliers']
+    multiplier = multipliers.get(expertise_level, multipliers.get('default', 1.0))
+
+    if profile.get('early_investigator', '').lower() == 'true':
+        multiplier *= cfg.get('earlyInvestigatorMultiplier', 1.0)
+
+    return min(base_prior * multiplier, cfg.get('priorCap', 0.30))
+
 
 def get_feature_likelihoods() -> Dict[str, Dict[str, float]]:
-    """Get likelihood ratios for each feature - DAMPENED to prevent over-scoring"""
-    
-    # Format: feature -> {'relevant': P(feature|relevant), 'irrelevant': P(feature|irrelevant)}
-    # IMPORTANT: Ratios are kept small (1.5-3.0x) to prevent exponential compounding
-    # When multiple features match, they multiply together, so we need conservative values
-    
-    return {
-        # Agency likelihoods - reduced from 4-8x to 1.5-2.5x
-        'isNIH': {'relevant': 0.30, 'irrelevant': 0.12},      # 2.5x ratio (was 8.0x)
-        'isNSF': {'relevant': 0.28, 'irrelevant': 0.14},      # 2.0x ratio (was 4.4x)
-        'isDOD': {'relevant': 0.25, 'irrelevant': 0.12},      # 2.1x ratio (was 8.3x)
-        'isDOE': {'relevant': 0.22, 'irrelevant': 0.12},      # 1.8x ratio (was 10x)
-        'isEmbassy': {'relevant': 0.05, 'irrelevant': 0.15},  # 0.3x ratio (penalty)
-        
-        # Research domain likelihoods - reduced from 5-6x to 1.8-2.5x
-        'isBiomedical': {'relevant': 0.35, 'irrelevant': 0.14}, # 2.5x ratio (was 6.0x)
-        'isEngineering': {'relevant': 0.32, 'irrelevant': 0.16}, # 2.0x ratio (was 6.2x)
-        'isBasicScience': {'relevant': 0.25, 'irrelevant': 0.14}, # 1.8x ratio (was 6.0x)
-        
-        # Specific research areas - reduced from 11-25x to 2.0-2.5x
-        'isAlzheimers': {'relevant': 0.30, 'irrelevant': 0.12}, # 2.5x ratio (was 25x)
-        'isCancer': {'relevant': 0.32, 'irrelevant': 0.13},     # 2.5x ratio (was 15x)
-        'isAI': {'relevant': 0.34, 'irrelevant': 0.17},        # 2.0x ratio (was 11.7x)
-        'isClimateChange': {'relevant': 0.28, 'irrelevant': 0.14}, # 2.0x ratio (was 10x)
-        
-        # Grant characteristics - kept modest
-        'isSmallBusiness': {'relevant': 0.20, 'irrelevant': 0.12}, # 1.7x ratio
-        'isEducation': {'relevant': 0.28, 'irrelevant': 0.16},     # 1.75x ratio
-        'isInternational': {'relevant': 0.15, 'irrelevant': 0.12}, # 1.25x ratio
-        
-        # Amount features - kept modest
-        'hasLargeAmount': {'relevant': 0.24, 'irrelevant': 0.14},   # 1.7x ratio (was 4.0x)
-        'hasMediumAmount': {'relevant': 0.35, 'irrelevant': 0.30},  # 1.17x ratio
-        'hasSmallAmount': {'relevant': 0.28, 'irrelevant': 0.32},   # 0.88x ratio (slight penalty)
-    }
+    """P(feature|relevant) / P(feature|irrelevant) per feature — see matching.json.
+
+    Ratios are kept small (1.5-3x): matched features multiply, so large ratios
+    compound into over-confident scores.
+    """
+    return {k: v for k, v in domain_config.matching()['featureLikelihoods'].items() if not k.startswith('$')}
+
 
 def calculate_bayesian_probability(profile: Dict[str, Any], features: Dict[str, bool]) -> float:
     """Calculate Bayesian probability that grant is relevant to researcher"""
@@ -354,9 +313,11 @@ def calculate_keyword_score(grant: Dict[str, Any], search_query: str) -> float:
     if total_terms == 0:
         return 0.5
     
-    title_score = (title_matches / total_terms) * 0.5  # 50% weight
-    description_score = (description_matches / total_terms) * 0.3  # 30% weight
-    agency_score = (agency_matches / total_terms) * 0.2  # 20% weight
+    # Field weights come from matching.json (keywordWeights.EU_FUNDING).
+    w = domain_config.matching()['keywordWeights']['EU_FUNDING']
+    title_score = (title_matches / total_terms) * w['title']
+    description_score = (description_matches / total_terms) * w['description']
+    agency_score = (agency_matches / total_terms) * w['agency']
     
     keyword_score = title_score + description_score + agency_score
     

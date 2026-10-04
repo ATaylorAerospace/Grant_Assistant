@@ -1,0 +1,12 @@
+{
+  "proposalId": "local-test-proposal",
+  "grantId": "local-test-grant",
+  "userId": "local-test-user",
+  "grantInfo": {
+    "title": "Thermal Transport Processes",
+    "agency": "NSF",
+    "description": "Supports fundamental research on heat transfer in materials and devices."
+  },
+  "selectedDocuments": [],
+  "env": {}
+}

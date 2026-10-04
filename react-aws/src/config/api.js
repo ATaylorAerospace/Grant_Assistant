@@ -7,7 +7,7 @@
 // Removed amplify-api import for clean testing
 
 // CDK API (fallback)
-const CDK_API_BASE_URL = process.env.REACT_APP_CDK_API_URL || 'https://zzhwus1ur6.execute-api.us-east-1.amazonaws.com/prod';
+const CDK_API_BASE_URL = import.meta.env.VITE_CDK_API_URL || 'https://zzhwus1ur6.execute-api.us-east-1.amazonaws.com/prod';
 
 // Feature flags to control which backend to use
 // Note: Events API handles searches, GraphQL handles profiles, CDK API handles fallbacks

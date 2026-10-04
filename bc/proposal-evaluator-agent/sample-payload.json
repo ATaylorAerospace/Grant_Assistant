@@ -1,0 +1,16 @@
+{
+  "proposalId": "local-test-proposal",
+  "userId": "local-test-user",
+  "proposalContent": {
+    "sections": {
+      "Intellectual Merit": "We propose to measure phonon-mediated thermal transport in nanostructured silicon using time-domain thermoreflectance.",
+      "Broader Impacts": "The project trains two graduate students and releases an open dataset of thermal conductivity measurements."
+    }
+  },
+  "prompt": {},
+  "contentQuality": {},
+  "grantInfo": {
+    "title": "Thermal Transport Processes",
+    "agency": "NSF"
+  }
+}

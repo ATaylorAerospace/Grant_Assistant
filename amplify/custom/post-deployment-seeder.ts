@@ -44,6 +44,10 @@ export interface PostDeploymentSeederProps {
 
     // Region
     region: string;
+
+    // 'dev' | 'prod' — prod skips demo-user seeding (see amplify/custom/deployment.ts)
+    grow2Env?: string;
+    removalPolicy?: RemovalPolicy;
 }
 
 export class PostDeploymentSeeder extends Construct {
@@ -256,7 +260,7 @@ export class PostDeploymentSeeder extends Construct {
         const buildEncryptionKey = new kms.Key(this, 'BuildEncryptionKey', {
             description: 'KMS key for CodeBuild project encryption',
             enableKeyRotation: true,
-            removalPolicy: RemovalPolicy.DESTROY,
+            removalPolicy: props.removalPolicy ?? RemovalPolicy.DESTROY,
         });
 
         // Grant CodeBuild service permission to use the key
@@ -316,6 +320,10 @@ export class PostDeploymentSeeder extends Construct {
                     // credential exists — the account is created only so the
                     // default profile has a valid owner.
                     SEED_TEST_USER_PASSWORD: { value: process.env.SEED_TEST_USER_PASSWORD || '' },
+
+                    // dev | prod. In prod the demo user, profile and agent config
+                    // are not seeded — real users sign up through Cognito.
+                    GROW2_ENV: { value: props.grow2Env || 'dev' },
                 },
             },
             buildSpec: codebuild.BuildSpec.fromObject({
@@ -429,7 +437,7 @@ except Exception as e:
     print(f"❌ Error creating user: {e}")
     exit(1)
 PYEOF`,
-                            'python3 /tmp/create_user.py',
+                            'if [ "$GROW2_ENV" = "prod" ]; then echo "GROW2_ENV=prod — skipping demo user, profile and agent config"; else python3 /tmp/create_user.py; fi',
                             '',
                             'export USER_ID=$(cat /tmp/user_id.txt)',
                             'echo "USER_ID=$USER_ID"',
@@ -561,7 +569,7 @@ except:
     print(f"   - Secondary Keywords: {len(profile['optimized_keywords'])} keywords")
     print(f"   - Agencies: {', '.join(profile['agencies'])}")
 PYEOF`,
-                            'python3 /tmp/create_profile.py',
+                            '[ "$GROW2_ENV" = "prod" ] || python3 /tmp/create_profile.py',
                             'echo ""',
 
                             // Step 3: Create agent config
@@ -612,7 +620,7 @@ else:
 with open("/tmp/config_id.txt", "w") as f:
     f.write(config_id)
 PYEOF`,
-                            'python3 /tmp/create_config.py',
+                            '[ "$GROW2_ENV" = "prod" ] || python3 /tmp/create_config.py',
                             '',
                             'export CONFIG_ID=$(cat /tmp/config_id.txt)',
                             'echo "CONFIG_ID=$CONFIG_ID"',

@@ -85,3 +85,9 @@ lambda-functions/*/botocore/
 python/eu_grants_full.json
 #
 .threat-composer
+
+# Local development (see README → Local Development)
+bc/common/local-env
+bc/*/.venv/
+react-aws/src/amplify_outputs.json
+bc/common/domain/

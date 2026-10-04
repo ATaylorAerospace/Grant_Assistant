@@ -58,6 +58,7 @@ import { AgentCoreStack } from './custom/agentcore-stack';
 
 // Post-Deployment Seeding
 import { PostDeploymentSeeder } from './custom/post-deployment-seeder';
+import { getDeploymentConfig } from './custom/deployment';
 
 // CDK-Nag Suppressions - DISABLED
 // import { suppressAllBackendLambdas } from './backend-suppressions';
@@ -83,6 +84,17 @@ export const backend = defineBackend({
   proposalGenerationAgentcore,
   proposalDownload
 });
+
+// ============================================================================
+// DEPLOYMENT CONFIG — unique names per deployment, dev/prod hardening
+// ============================================================================
+// See amplify/custom/deployment.ts. `deployment.deploymentId` suffixes every
+// name that must be unique in the account/region; `deployment.isProd` flips
+// data-retention settings. Set GROW2_ENV=prod on the deploy to get the latter.
+const deployment = getDeploymentConfig(backend.stack);
+const exportPrefix = deployment.exportPrefix;
+console.log(`GROW2 deployment id: ${deployment.deploymentId}  env: ${deployment.env}`);
+
 
 // ============================================================================
 // AGENT ARN ENVIRONMENT VARIABLES - Passed directly (no CloudFormation exports)
@@ -163,7 +175,7 @@ const promptInjectionGuardrail = new CfnGuardrail(
   backend.stack,
   'PromptInjectionGuardrail',
   {
-    name: 'GROW2-PromptInjection-Guardrail',
+    name: `GROW2-PromptInjection-Guardrail-${deployment.deploymentId}`,
     description: 'Protects against prompt injection, jailbreaks, and prompt leakage for GROW2 user-facing AI functions',
     blockedInputMessaging: 'Your request was blocked for security reasons. Please rephrase your question about research grants.',
     blockedOutputsMessaging: 'The response was blocked for security reasons. Please try a different question.',
@@ -212,13 +224,13 @@ const guardrailVersion = new CfnGuardrailVersion(
 new CfnOutput(backend.stack, 'GuardrailId', {
   value: promptInjectionGuardrail.attrGuardrailId,
   description: 'Bedrock Guardrail ID for prompt injection protection',
-  exportName: 'GROW2-GuardrailId',
+  exportName: `${exportPrefix}-GuardrailId`,
 });
 
 new CfnOutput(backend.stack, 'GuardrailVersion', {
   value: guardrailVersion.attrVersion,
   description: 'Bedrock Guardrail version',
-  exportName: 'GROW2-GuardrailVersion',
+  exportName: `${exportPrefix}-GuardrailVersion`,
 });
 
 // ============================================================================
@@ -230,13 +242,13 @@ const wafWebAcl = new wafv2.CfnWebACL(
   backend.stack,
   'GraphQLApiWaf',
   {
-    name: 'GROW2-GraphQL-RateLimit',
+    name: `GROW2-GraphQL-RateLimit-${deployment.deploymentId}`,
     description: 'Rate limits the GROW2 AppSync GraphQL API to prevent abuse',
     scope: 'REGIONAL',
     defaultAction: { allow: {} },
     visibilityConfig: {
       cloudWatchMetricsEnabled: true,
-      metricName: 'GROW2GraphQLRateLimit',
+      metricName: `GROW2GraphQLRateLimit${deployment.deploymentId}`,
       sampledRequestsEnabled: true,
     },
     rules: [
@@ -273,7 +285,7 @@ const wafAssociation = new wafv2.CfnWebACLAssociation(
 new CfnOutput(backend.stack, 'WafWebAclArn', {
   value: wafWebAcl.attrArn,
   description: 'WAF WebACL ARN for GraphQL API rate limiting',
-  exportName: 'GROW2-WafWebAclArn',
+  exportName: `${exportPrefix}-WafWebAclArn`,
 });
 
 // ============================================================================
@@ -565,8 +577,8 @@ const accessLogsBucket = new s3.Bucket(
     publicReadAccess: false,
     blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
     encryption: s3.BucketEncryption.S3_MANAGED,
-    autoDeleteObjects: true,
-    removalPolicy: RemovalPolicy.DESTROY,
+    autoDeleteObjects: deployment.autoDeleteObjects,
+    removalPolicy: deployment.removalPolicy,
     lifecycleRules: [
       {
         id: 'DeleteOldLogs',
@@ -602,8 +614,8 @@ const discoveryResultsBucket = new s3.Bucket(
     publicReadAccess: false,
     blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
     encryption: s3.BucketEncryption.S3_MANAGED,
-    autoDeleteObjects: true,
-    removalPolicy: RemovalPolicy.DESTROY,
+    autoDeleteObjects: deployment.autoDeleteObjects,
+    removalPolicy: deployment.removalPolicy,
     serverAccessLogsBucket: accessLogsBucket, // SECURITY FIX: S1 - Enable access logging
     serverAccessLogsPrefix: 'discovery-results/', // SECURITY FIX: S1
     lifecycleRules: [
@@ -641,8 +653,8 @@ const euGrantsCacheBucket = new s3.Bucket(
     publicReadAccess: false,
     blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
     encryption: s3.BucketEncryption.S3_MANAGED,
-    autoDeleteObjects: true,
-    removalPolicy: RemovalPolicy.DESTROY,
+    autoDeleteObjects: deployment.autoDeleteObjects,
+    removalPolicy: deployment.removalPolicy,
     serverAccessLogsBucket: accessLogsBucket, // SECURITY FIX: S1 - Enable access logging
     serverAccessLogsPrefix: 'eu-grants-cache/', // SECURITY FIX: S1
     lifecycleRules: [
@@ -689,6 +701,8 @@ const chatSessionsTable = new dynamodb.Table(
     billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
     encryption: dynamodb.TableEncryption.AWS_MANAGED,
     pointInTimeRecovery: true,
+    deletionProtection: deployment.isProd,
+    removalPolicy: deployment.removalPolicy,
   }
 );
 
@@ -713,8 +727,8 @@ const chatContextBucket = new s3.Bucket(
     publicReadAccess: false,
     blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
     encryption: s3.BucketEncryption.S3_MANAGED,
-    autoDeleteObjects: true,
-    removalPolicy: RemovalPolicy.DESTROY,
+    autoDeleteObjects: deployment.autoDeleteObjects,
+    removalPolicy: deployment.removalPolicy,
     serverAccessLogsBucket: accessLogsBucket, // SECURITY FIX: S1 - Enable access logging
     serverAccessLogsPrefix: 'chat-context/', // SECURITY FIX: S1
   }
@@ -855,7 +869,7 @@ backend.grantsSearchV2.addEnvironment('GRANT_RECORDS_TABLE', backend.data.resour
 backend.grantsSearchV2.addEnvironment('USER_PROFILE_TABLE', backend.data.resources.tables["UserProfile"].tableName);
 backend.grantsSearchV2.addEnvironment('BEDROCK_AGENTCORE_REGION', Stack.of(backend.grantsSearchV2.resources.lambda).region);
 backend.grantsSearchV2.addEnvironment('GRAPHQL_API_ID', backend.data.resources.graphqlApi.apiId);
-backend.grantsSearchV2.addEnvironment('AGENT_ARN_EXPORT_NAME', 'AgentCore-UsGrantsV2AgentArn');
+backend.grantsSearchV2.addEnvironment('AGENT_ARN_EXPORT_NAME', `${exportPrefix}-AgentCore-UsGrantsV2AgentArn`);
 backend.grantsSearchV2.addEnvironment('GUARDRAIL_ID', promptInjectionGuardrail.attrGuardrailId);
 backend.grantsSearchV2.addEnvironment('GUARDRAIL_VERSION', guardrailVersion.attrVersion);
 
@@ -913,7 +927,7 @@ backend.euGrantsSearchV2.addEnvironment('USER_PROFILE_TABLE', backend.data.resou
 backend.euGrantsSearchV2.addEnvironment('BEDROCK_AGENTCORE_REGION', Stack.of(backend.euGrantsSearchV2.resources.lambda).region);
 backend.euGrantsSearchV2.addEnvironment('GRAPHQL_API_ID', backend.data.resources.graphqlApi.apiId);
 backend.euGrantsSearchV2.addEnvironment('EU_CACHE_BUCKET', euGrantsCacheBucket.bucketName);
-backend.euGrantsSearchV2.addEnvironment('AGENT_ARN_EXPORT_NAME', 'AgentCore-EuGrantsV2AgentArn');
+backend.euGrantsSearchV2.addEnvironment('AGENT_ARN_EXPORT_NAME', `${exportPrefix}-AgentCore-EuGrantsV2AgentArn`);
 backend.euGrantsSearchV2.addEnvironment('GUARDRAIL_ID', promptInjectionGuardrail.attrGuardrailId);
 backend.euGrantsSearchV2.addEnvironment('GUARDRAIL_VERSION', guardrailVersion.attrVersion);
 
@@ -977,7 +991,7 @@ new CfnOutput(
   {
     value: euGrantsCacheBucket.bucketName,
     description: 'EU Grants Cache S3 Bucket Name',
-    exportName: 'EuGrantsCacheBucketName'
+    exportName: `${exportPrefix}-EuGrantsCacheBucketName`
   }
 );
 
@@ -988,7 +1002,7 @@ new CfnOutput(
   {
     value: backend.euGrantsCacheDownloader.resources.lambda.functionName,
     description: 'EU Grants Cache Downloader Lambda Function Name',
-    exportName: 'EuGrantsCacheDownloaderFunctionName'
+    exportName: `${exportPrefix}-EuGrantsCacheDownloaderFunctionName`
   }
 );
 
@@ -1124,7 +1138,7 @@ new CfnOutput(
   {
     value: agentDiscoveryStepFunction.stateMachine.stateMachineArn,
     description: 'Agent Discovery Step Function ARN',
-    exportName: 'AgentDiscoveryStepFunctionArn'
+    exportName: `${exportPrefix}-AgentDiscoveryStepFunctionArn`
   }
 );
 
@@ -1135,7 +1149,7 @@ new CfnOutput(
   {
     value: agentDiscoveryStepFunction.stateMachine.stateMachineName,
     description: 'Agent Discovery Step Function Name',
-    exportName: 'AgentDiscoveryStepFunctionName'
+    exportName: `${exportPrefix}-AgentDiscoveryStepFunctionName`
   }
 );
 
@@ -1200,8 +1214,11 @@ const openSearchStack = new OpenSearchCollectionStack(
   Stack.of(backend.data.resources.graphqlApi),
   'OpenSearchCollection',
   {
-    collectionName: 'kb', // Short base name - will become kb-{region}-{uniqueId}
+    collectionName: 'kb', // Short base name - will become kb-{deploymentId}
     accessLogsBucket: accessLogsBucket, // SECURITY FIX: S1 - Pass access logs bucket
+    deploymentId: deployment.deploymentId,
+    removalPolicy: deployment.removalPolicy,
+    autoDeleteObjects: deployment.autoDeleteObjects,
   }
 );
 
@@ -1445,8 +1462,8 @@ const proposalsBucket = new s3.Bucket(
     publicReadAccess: false,
     blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
     encryption: s3.BucketEncryption.S3_MANAGED,
-    autoDeleteObjects: true,
-    removalPolicy: RemovalPolicy.DESTROY,
+    autoDeleteObjects: deployment.autoDeleteObjects,
+    removalPolicy: deployment.removalPolicy,
     serverAccessLogsBucket: accessLogsBucket, // SECURITY FIX: S1 - Enable access logging
     serverAccessLogsPrefix: 'proposals/', // SECURITY FIX: S1
     lifecycleRules: [
@@ -1583,7 +1600,7 @@ import { BedrockPromptsStack } from './custom/bedrock-prompts-stack';
 const bedrockPrompts = new BedrockPromptsStack(
   backend.createStack('BedrockPrompts'),
   'BedrockPrompts',
-  {}
+  { exportPrefix }
 );
 
 // ============================================================================
@@ -1640,6 +1657,7 @@ const agentCore = new AgentCoreStack(
     knowledgeBaseId: openSearchStack.knowledgeBase.attrKnowledgeBaseId,
     appsyncApiId: backend.data.resources.graphqlApi.apiId,
     promptArns: bedrockPrompts.getAllPromptArns(),
+    deploymentId: deployment.deploymentId,
   }
 );
 
@@ -1647,19 +1665,19 @@ const agentCore = new AgentCoreStack(
 // Use CfnOutput exports with static names (cannot use tokens in export names)
 new CfnOutput(agentCore, 'UsGrantsV2AgentArn', {
   value: agentCore.usGrantsSearchV2Arn,
-  exportName: 'AgentCore-UsGrantsV2AgentArn',
+  exportName: `${exportPrefix}-AgentCore-UsGrantsV2AgentArn`,
   description: 'US Grants Search V2 Agent ARN',
 });
 
 new CfnOutput(agentCore, 'EuGrantsV2AgentArn', {
   value: agentCore.euGrantsSearchV2Arn,
-  exportName: 'AgentCore-EuGrantsV2AgentArn',
+  exportName: `${exportPrefix}-AgentCore-EuGrantsV2AgentArn`,
   description: 'EU Grants Search V2 Agent ARN',
 });
 
 new CfnOutput(agentCore, 'ProposalGenerationAgentArn', {
   value: agentCore.proposalGenerationArn,
-  exportName: 'AgentCore-ProposalGenerationAgentArn',
+  exportName: `${exportPrefix}-AgentCore-ProposalGenerationAgentArn`,
   description: 'Proposal Generation Agent ARN',
 });
 
@@ -1731,7 +1749,7 @@ backend.proposalGenerationAgentcore.addEnvironment('DOCUMENT_BUCKET', openSearch
 backend.proposalGenerationAgentcore.addEnvironment('USER_PROFILE_TABLE', backend.data.resources.tables["UserProfile"].tableName);
 backend.proposalGenerationAgentcore.addEnvironment('BEDROCK_AGENTCORE_REGION', Stack.of(backend.proposalGenerationAgentcore.resources.lambda).region);
 backend.proposalGenerationAgentcore.addEnvironment('GRAPHQL_API_ID', backend.data.resources.graphqlApi.apiId);
-backend.proposalGenerationAgentcore.addEnvironment('AGENT_ARN_EXPORT_NAME', 'AgentCore-ProposalGenerationAgentArn');
+backend.proposalGenerationAgentcore.addEnvironment('AGENT_ARN_EXPORT_NAME', `${exportPrefix}-AgentCore-ProposalGenerationAgentArn`);
 backend.proposalGenerationAgentcore.addEnvironment('GUARDRAIL_ID', promptInjectionGuardrail.attrGuardrailId);
 backend.proposalGenerationAgentcore.addEnvironment('GUARDRAIL_VERSION', guardrailVersion.attrVersion);
 // PROPOSAL_MODEL_TIER: 'opus' uses Claude Opus 5 (200K context, better for large EU prompts)
@@ -1793,90 +1811,126 @@ backend.proposalGenerationAgentcore.resources.lambda.addToRolePolicy(new PolicyS
 
 
 // ============================================================================
+// LOG RETENTION — every Lambda in the backend
+// ============================================================================
+// Lambda creates its log groups with no expiry. LogRetention sets a retention
+// policy on each group (creating it if it does not exist yet), so this is safe
+// to apply to an already-deployed stack.
+import * as logs from 'aws-cdk-lib/aws-logs';
+const logRetention = deployment.isProd ? logs.RetentionDays.ONE_YEAR : logs.RetentionDays.ONE_MONTH;
+const backendFunctions = [
+  backend.grantsSearchV2, backend.euGrantsSearchV2, backend.euGrantsCacheDownloader,
+  backend.agentConfig, backend.agentDiscoverySearch, backend.agentDiscoveryUpdate,
+  backend.agentDiscoveryScheduler, backend.s3BucketOperations, backend.chatHandler,
+  backend.kbDocumentUpload, backend.kbDocumentProcessor, backend.kbSearch,
+  backend.kbDocumentManager, backend.promptManager, backend.proposalsQuery,
+  backend.proposalGenerationAgentcore, backend.proposalDownload,
+];
+for (const fnResource of backendFunctions) {
+  const fn = fnResource.resources.lambda;
+  new logs.LogRetention(Stack.of(fn), `${fn.node.id}LogRetention`, {
+    logGroupName: `/aws/lambda/${fn.functionName}`,
+    retention: logRetention,
+  });
+}
+
+// ============================================================================
+// DATA PROTECTION — every Amplify-managed table
+// ============================================================================
+// Point-in-time recovery is always on (it is cheap and the only way back from a
+// bad write). Deletion protection and RETAIN apply in prod so `delete-grow2.sh`
+// or a failed stack update cannot take the data with it.
+for (const table of Object.values(backend.data.resources.cfnResources.amplifyDynamoDbTables)) {
+  table.pointInTimeRecoveryEnabled = true;
+  table.deletionProtectionEnabled = deployment.isProd;
+  table.applyRemovalPolicy(deployment.removalPolicy);
+}
+
+// ============================================================================
 // CLOUDFORMATION EXPORTS FOR TESTING AND MULTI-REGION DEPLOYMENT
 // ============================================================================
 
 // DynamoDB Table Names
 new CfnOutput(Stack.of(backend.data.resources.graphqlApi), 'GrantRecordTableName', {
   value: backend.data.resources.tables["GrantRecord"].tableName,
-  exportName: 'GrantRecordTableName',
+  exportName: `${exportPrefix}-GrantRecordTableName`,
   description: 'US Grant Records DynamoDB Table Name',
 });
 
 new CfnOutput(Stack.of(backend.data.resources.graphqlApi), 'EuGrantRecordTableName', {
   value: backend.data.resources.tables["EuGrantRecord"].tableName,
-  exportName: 'EuGrantRecordTableName',
+  exportName: `${exportPrefix}-EuGrantRecordTableName`,
   description: 'EU Grant Records DynamoDB Table Name',
 });
 
 new CfnOutput(Stack.of(backend.data.resources.graphqlApi), 'UserProfileTableName', {
   value: backend.data.resources.tables["UserProfile"].tableName,
-  exportName: 'UserProfileTableName',
+  exportName: `${exportPrefix}-UserProfileTableName`,
   description: 'User Profile DynamoDB Table Name',
 });
 
 new CfnOutput(Stack.of(backend.data.resources.graphqlApi), 'AgentConfigTableName', {
   value: backend.data.resources.tables["AgentConfig"].tableName,
-  exportName: 'AgentConfigTableName',
+  exportName: `${exportPrefix}-AgentConfigTableName`,
   description: 'Agent Config DynamoDB Table Name',
 });
 
 new CfnOutput(Stack.of(backend.data.resources.graphqlApi), 'ProposalTableName', {
   value: backend.data.resources.tables["Proposal"].tableName,
-  exportName: 'ProposalTableName',
+  exportName: `${exportPrefix}-ProposalTableName`,
   description: 'Proposal DynamoDB Table Name',
 });
 
 // S3 Bucket Names
 new CfnOutput(Stack.of(backend.data.resources.graphqlApi), 'ProposalsBucketName', {
   value: proposalsBucket.bucketName,
-  exportName: 'ProposalsBucketName',
+  exportName: `${exportPrefix}-ProposalsBucketName`,
   description: 'Proposals S3 Bucket Name',
 });
 
 new CfnOutput(Stack.of(backend.data.resources.graphqlApi), 'DocumentBucketName', {
   value: openSearchStack.documentBucket.bucketName,
-  exportName: 'DocumentBucketName',
+  exportName: `${exportPrefix}-DocumentBucketName`,
   description: 'Knowledge Base Documents S3 Bucket Name',
 });
 
 // Lambda Function Names (for testing)
 new CfnOutput(Stack.of(backend.grantsSearchV2.resources.lambda), 'GrantsSearchV2FunctionName', {
   value: backend.grantsSearchV2.resources.lambda.functionName,
-  exportName: 'GrantsSearchV2FunctionName',
+  exportName: `${exportPrefix}-GrantsSearchV2FunctionName`,
   description: 'US Grants Search V2 Lambda Function Name',
 });
 
 new CfnOutput(Stack.of(backend.euGrantsSearchV2.resources.lambda), 'EuGrantsSearchV2FunctionName', {
   value: backend.euGrantsSearchV2.resources.lambda.functionName,
-  exportName: 'EuGrantsSearchV2FunctionName',
+  exportName: `${exportPrefix}-EuGrantsSearchV2FunctionName`,
   description: 'EU Grants Search V2 Lambda Function Name',
 });
 
 new CfnOutput(Stack.of(backend.proposalGenerationAgentcore.resources.lambda), 'ProposalGenerationFunctionName', {
   value: backend.proposalGenerationAgentcore.resources.lambda.functionName,
-  exportName: 'ProposalGenerationFunctionName',
+  exportName: `${exportPrefix}-ProposalGenerationFunctionName`,
   description: 'Proposal Generation Lambda Function Name',
 });
 
 // AppSync API
 new CfnOutput(Stack.of(backend.data.resources.graphqlApi), 'GraphQLApiId', {
   value: backend.data.resources.graphqlApi.apiId,
-  exportName: 'GraphQLApiId',
+  exportName: `${exportPrefix}-GraphQLApiId`,
   description: 'AppSync GraphQL API ID',
 });
 
 // Knowledge Base
 new CfnOutput(Stack.of(backend.data.resources.graphqlApi), 'KnowledgeBaseId', {
   value: openSearchStack.knowledgeBase.attrKnowledgeBaseId,
-  exportName: 'KnowledgeBaseId',
+  exportName: `${exportPrefix}-KnowledgeBaseId`,
   description: 'Bedrock Knowledge Base ID',
 });
 
 // Region (for multi-region deployments)
 new CfnOutput(Stack.of(backend.data.resources.graphqlApi), 'DeploymentRegion', {
   value: Stack.of(backend.data.resources.graphqlApi).region,
-  exportName: 'DeploymentRegion',
+  exportName: `${exportPrefix}-DeploymentRegion`,
   description: 'AWS Region where resources are deployed',
 });
 
@@ -1919,6 +1973,10 @@ const postDeploymentSeeder = new PostDeploymentSeeder(
 
     // Region
     region: Stack.of(backend.data.resources.graphqlApi).region,
+
+    // dev/prod — prod skips the demo user and retains the build key
+    grow2Env: deployment.env,
+    removalPolicy: deployment.removalPolicy,
   }
 );
 

@@ -1,0 +1,72 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "StartAndWatchDeployBuilds",
+      "Effect": "Allow",
+      "Action": [
+        "codebuild:CreateProject",
+        "codebuild:UpdateProject",
+        "codebuild:BatchGetProjects",
+        "codebuild:StartBuild",
+        "codebuild:BatchGetBuilds",
+        "codebuild:ListBuildsForProject"
+      ],
+      "Resource": [
+        "arn:aws:codebuild:*:*:project/grow2-arm64-deployer-*",
+        "arn:aws:codebuild:*:*:project/grow2-seeder-*"
+      ]
+    },
+    {
+      "Sid": "UploadSourceBundle",
+      "Effect": "Allow",
+      "Action": [
+        "s3:CreateBucket",
+        "s3:ListBucket",
+        "s3:GetBucketLocation",
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:PutBucketVersioning",
+        "s3:PutEncryptionConfiguration",
+        "s3:PutBucketPublicAccessBlock"
+      ],
+      "Resource": [
+        "arn:aws:s3:::grow2-deploy-*",
+        "arn:aws:s3:::grow2-deploy-*/*"
+      ]
+    },
+    {
+      "Sid": "HandDeployerRoleToCodeBuild",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetRole",
+        "iam:PassRole"
+      ],
+      "Resource": "arn:aws:iam::*:role/grow2-codebuild-deployer-role",
+      "Condition": {
+        "StringEquals": { "iam:PassedToService": "codebuild.amazonaws.com" }
+      }
+    },
+    {
+      "Sid": "ReadStackState",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:ListExports",
+        "cloudformation:ListStacks",
+        "cloudformation:DescribeStacks",
+        "sts:GetCallerIdentity",
+        "amplify:ListApps",
+        "amplify:GetApp"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "LocalDevelopment",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject"
+      ],
+      "Resource": "arn:aws:s3:::amplify-grow2-*/codebuild-deploy/amplify_outputs.json"
+    }
+  ]
+}

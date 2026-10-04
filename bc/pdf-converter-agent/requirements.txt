@@ -1,4 +1,6 @@
-bedrock-agentcore>=1.0.0
+# Pinned for reproducible, cacheable image layers. WeasyPrint is held at 60.1
+# (with its matching pydyf) — bump deliberately and re-check PDF output.
+bedrock-agentcore==1.24.0
+boto3==1.43.108
 weasyprint==60.1
 pydyf==0.10.0
-boto3>=1.42.59

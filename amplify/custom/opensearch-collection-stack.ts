@@ -26,6 +26,9 @@ import { NagSuppressions } from 'cdk-nag';
 export interface OpenSearchCollectionStackProps {
   collectionName?: string;
   accessLogsBucket?: s3.IBucket; // SECURITY FIX: S1 - Access logs bucket
+  deploymentId?: string;         // Unique per deployment — see amplify/custom/deployment.ts
+  removalPolicy?: RemovalPolicy; // RETAIN in prod
+  autoDeleteObjects?: boolean;   // false in prod
 }
 
 export class OpenSearchCollectionStack extends Construct {
@@ -47,8 +50,14 @@ export class OpenSearchCollectionStack extends Construct {
     // This avoids token issues in resource names
     const region = stack.region;
 
-    // Generate unique suffix - this is already a resolved string
-    const uniqueId = Names.uniqueId(this).slice(-8).toLowerCase();
+    // Unique suffix for the collection, its security policies and the document
+    // bucket. Names.uniqueId() is a hash of the construct *path*, which is the
+    // same in every deployment of this code — so two deployments in one region
+    // collided. The deployment id differs per stack; the path hash is the
+    // fallback when no id is passed.
+    const uniqueId = (props?.deploymentId || Names.uniqueId(this).slice(-8)).toLowerCase();
+    const removalPolicy = props?.removalPolicy ?? RemovalPolicy.DESTROY;
+    const autoDeleteObjects = props?.autoDeleteObjects ?? true;
 
     // For resource names, we CANNOT use tokens (like stack.region)
     // Instead, use a simple unique ID that works across all regions
@@ -61,13 +70,15 @@ export class OpenSearchCollectionStack extends Construct {
 
     // 1. Create S3 bucket for documents
     this.documentBucket = new s3.Bucket(this, 'DocumentBucket', {
-      bucketName: `kb-docs-${account}-${region}`,
+      // Suffixed with the deployment id so a second deployment in the same
+      // account/region gets its own bucket.
+      bucketName: `kb-docs-${account}-${region}-${uniqueId}`,
       encryption: s3.BucketEncryption.S3_MANAGED,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       versioned: true,
       enforceSSL: true,
-      autoDeleteObjects: true,
-      removalPolicy: RemovalPolicy.DESTROY,
+      autoDeleteObjects,
+      removalPolicy,
       serverAccessLogsBucket: props?.accessLogsBucket, // SECURITY FIX: S1 - Enable access logging
       serverAccessLogsPrefix: 'kb-documents/', // SECURITY FIX: S1
       lifecycleRules: [

@@ -1,2 +1,8 @@
-bedrock-agentcore>=1.0.0
-boto3>=1.42.59
+# Pinned so the pip layer is byte-identical across agents and cacheable in
+# CodeBuild (LOCAL_DOCKER_LAYER_CACHE). Bump all agents together.
+bedrock-agentcore==1.24.0
+boto3==1.43.108
+httpx==0.28.1
+aws-requests-auth==0.4.3
+requests==2.34.2
+python-dateutil==2.9.0.post0

@@ -1,0 +1,21 @@
+{
+  "$comment": "Endpoints and limits for the source connectors in bc/common/sources/. Keys are the connector `name`s.",
+
+  "GRANTS_GOV": {
+    "searchUrl": "https://api.grants.gov/v1/api/search2",
+    "fetchUrl": "https://api.grants.gov/v1/api/fetchOpportunity",
+    "maxResults": 25,
+    "userAgent": "Mozilla/5.0 (compatible; GrantsAgentV2/1.0)"
+  },
+
+  "EU_FUNDING": {
+    "$comment": "The catalogue is read from the nightly S3 cache written by amplify/functions/eu-grants-cache-downloader; only Topic Details are fetched live.",
+    "catalogueUrl": "https://ec.europa.eu/info/funding-tenders/opportunities/data/referenceData/grantsTenders.json",
+    "cacheKey": "eu_grants_latest.json",
+    "topicDetailsUrl": "https://ec.europa.eu/info/funding-tenders/opportunities/data/topicDetails/{identifier}.json",
+    "portalUrl": "https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/topic-details/{identifier}",
+    "statuses": ["Open", "Forthcoming"],
+    "maxFiltered": 100,
+    "maxResults": 25
+  }
+}
