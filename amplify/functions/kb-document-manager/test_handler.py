@@ -16,8 +16,13 @@ from datetime import datetime, timedelta
 from unittest.mock import Mock, patch, MagicMock
 import pytest
 
-# Mock AWS services before importing handler
-sys.modules['boto3'] = MagicMock()
+# Placeholder AWS config so the module-level boto3 clients can be constructed
+# without an account; every test patches handler.dynamodb / handler.s3_client /
+# handler.bedrock_agent, so nothing reaches AWS. (Replacing sys.modules['boto3']
+# with a MagicMock broke `from boto3.dynamodb.conditions import Key`.)
+os.environ.setdefault('AWS_DEFAULT_REGION', 'us-east-1')
+os.environ.setdefault('AWS_ACCESS_KEY_ID', 'testing')
+os.environ.setdefault('AWS_SECRET_ACCESS_KEY', 'testing')
 
 # Set environment variables for testing
 os.environ['DOCUMENT_BUCKET'] = 'test-document-bucket'
@@ -57,9 +62,7 @@ class TestDocumentManager:
     def create_event(self, field_name: str, arguments: dict) -> dict:
         """Create a test event with Cognito identity"""
         return {
-            'info': {
-                'fieldName': field_name
-            },
+            'fieldName': field_name,  # AppSync passes it at the top level, not under 'info'
             'arguments': arguments,
             'identity': {
                 'claims': {
@@ -92,8 +95,7 @@ class TestDocumentManager:
         response = handler.lambda_handler(event, None)
         
         # Verify response
-        assert response['statusCode'] == 200
-        body = json.loads(response['body'])
+        body = response  # AppSync resolver returns the payload directly
         assert len(body['documents']) == 1
         assert body['documents'][0]['documentId'] == self.document_id
         assert body['total'] == 1
@@ -123,8 +125,7 @@ class TestDocumentManager:
         response = handler.lambda_handler(event, None)
         
         # Verify response
-        assert response['statusCode'] == 200
-        body = json.loads(response['body'])
+        body = response  # AppSync resolver returns the payload directly
         assert len(body['documents']) == 1
         
         # Verify query was called with filter
@@ -156,8 +157,7 @@ class TestDocumentManager:
         response = handler.lambda_handler(event, None)
         
         # Verify response
-        assert response['statusCode'] == 200
-        body = json.loads(response['body'])
+        body = response  # AppSync resolver returns the payload directly
         assert len(body['documents']) == 1
         assert body['documents'][0]['status'] == 'ready'
     
@@ -188,8 +188,7 @@ class TestDocumentManager:
         response = handler.lambda_handler(event, None)
         
         # Verify response
-        assert response['statusCode'] == 200
-        body = json.loads(response['body'])
+        body = response  # AppSync resolver returns the payload directly
         assert len(body['documents']) == 1
     
     @patch('handler.dynamodb')
@@ -219,8 +218,7 @@ class TestDocumentManager:
         response = handler.lambda_handler(event, None)
         
         # Verify response
-        assert response['statusCode'] == 200
-        body = json.loads(response['body'])
+        body = response  # AppSync resolver returns the payload directly
         assert len(body['documents']) == 10
         assert body['total'] == 30
         assert body['hasMore'] is True
@@ -248,8 +246,7 @@ class TestDocumentManager:
         response = handler.lambda_handler(event, None)
         
         # Verify response
-        assert response['statusCode'] == 200
-        body = json.loads(response['body'])
+        body = response  # AppSync resolver returns the payload directly
         assert len(body['documents']) == 0
         assert body['total'] == 0
         assert body['hasMore'] is False
@@ -288,10 +285,7 @@ class TestDocumentManager:
         response = handler.lambda_handler(event, None)
         
         # Verify response
-        assert response['statusCode'] == 200
-        body = json.loads(response['body'])
-        assert body['success'] is True
-        assert body['documentId'] == self.document_id
+        assert response is True  # deleteDocument resolves to a GraphQL Boolean
         
         # Verify S3 delete was called
         mock_s3.delete_object.assert_called_once_with(
@@ -319,13 +313,9 @@ class TestDocumentManager:
         })
         
         # Call handler
-        response = handler.lambda_handler(event, None)
-        
-        # Verify response
-        assert response['statusCode'] == 404
-        body = json.loads(response['body'])
-        assert 'error' in body
-        assert 'not found' in body['error'].lower()
+        with pytest.raises(Exception) as exc:
+            handler.lambda_handler(event, None)
+        assert 'not found' in str(exc.value).lower()
     
     @patch('handler.dynamodb')
     def test_delete_document_missing_id(self, mock_dynamodb):
@@ -334,13 +324,9 @@ class TestDocumentManager:
         event = self.create_event('deleteDocument', {})
         
         # Call handler
-        response = handler.lambda_handler(event, None)
-        
-        # Verify response
-        assert response['statusCode'] == 400
-        body = json.loads(response['body'])
-        assert 'error' in body
-        assert 'required' in body['error'].lower()
+        with pytest.raises(Exception) as exc:
+            handler.lambda_handler(event, None)
+        assert 'required' in str(exc.value).lower()
     
     @patch('handler.s3_client')
     @patch('handler.dynamodb')
@@ -370,9 +356,7 @@ class TestDocumentManager:
         response = handler.lambda_handler(event, None)
         
         # Verify response - should still succeed
-        assert response['statusCode'] == 200
-        body = json.loads(response['body'])
-        assert body['success'] is True
+        assert response is True  # deleteDocument resolves to a GraphQL Boolean
     
     # Test: Get Document Status
     
@@ -395,8 +379,7 @@ class TestDocumentManager:
         response = handler.lambda_handler(event, None)
         
         # Verify response
-        assert response['statusCode'] == 200
-        body = json.loads(response['body'])
+        body = response  # AppSync resolver returns the payload directly
         assert body['documentId'] == self.document_id
         assert body['status'] == 'ready'
         assert body['vectorIndexed'] is True
@@ -415,13 +398,9 @@ class TestDocumentManager:
         })
         
         # Call handler
-        response = handler.lambda_handler(event, None)
-        
-        # Verify response
-        assert response['statusCode'] == 404
-        body = json.loads(response['body'])
-        assert 'error' in body
-        assert 'not found' in body['error'].lower()
+        with pytest.raises(Exception) as exc:
+            handler.lambda_handler(event, None)
+        assert 'not found' in str(exc.value).lower()
     
     @patch('handler.dynamodb')
     def test_get_document_status_missing_id(self, mock_dynamodb):
@@ -430,13 +409,9 @@ class TestDocumentManager:
         event = self.create_event('getDocumentStatus', {})
         
         # Call handler
-        response = handler.lambda_handler(event, None)
-        
-        # Verify response
-        assert response['statusCode'] == 400
-        body = json.loads(response['body'])
-        assert 'error' in body
-        assert 'required' in body['error'].lower()
+        with pytest.raises(Exception) as exc:
+            handler.lambda_handler(event, None)
+        assert 'required' in str(exc.value).lower()
     
     # Test: User Authorization
     
@@ -444,18 +419,14 @@ class TestDocumentManager:
         """Test request without user identity"""
         # Create event without identity
         event = {
-            'info': {'fieldName': 'listDocuments'},
+            'fieldName': 'listDocuments',
             'arguments': {}
         }
         
         # Call handler
-        response = handler.lambda_handler(event, None)
-        
-        # Verify response
-        assert response['statusCode'] == 401
-        body = json.loads(response['body'])
-        assert 'error' in body
-        assert 'unauthorized' in body['error'].lower()
+        with pytest.raises(Exception) as exc:
+            handler.lambda_handler(event, None)
+        assert 'unauthorized' in str(exc.value).lower()
     
     def test_unknown_operation(self):
         """Test request with unknown operation"""
@@ -463,13 +434,9 @@ class TestDocumentManager:
         event = self.create_event('unknownOperation', {})
         
         # Call handler
-        response = handler.lambda_handler(event, None)
-        
-        # Verify response
-        assert response['statusCode'] == 400
-        body = json.loads(response['body'])
-        assert 'error' in body
-        assert 'unknown operation' in body['error'].lower()
+        with pytest.raises(Exception) as exc:
+            handler.lambda_handler(event, None)
+        assert 'unknown operation' in str(exc.value).lower()
     
     # Test: Extract User Identity
     

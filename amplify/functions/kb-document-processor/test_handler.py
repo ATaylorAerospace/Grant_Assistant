@@ -42,6 +42,26 @@ class TestDocumentProcessor(unittest.TestCase):
         self.context.function_name = 'test-function'
         self.context.invoked_function_arn = 'arn:aws:lambda:us-east-1:123456789012:function:test-function'
     
+    def _mock_s3_pdf(self):
+        """Stub everything process_s3_record touches before the ingestion job:
+        S3 head/get, the metadata lookup, PDF text extraction and its bookkeeping."""
+        for target, value in [
+            ('handler.get_document_metadata', {}),
+            ('handler.extract_text_from_pdf', 'extracted text'),
+            ('handler.store_extracted_text', 'user-test-user/test-doc-id/extracted.txt'),
+            ('handler.update_document_extraction_status', None),
+        ]:
+            p = patch(target, return_value=value)
+            p.start()
+            self.addCleanup(p.stop)
+        s3 = patch('handler.s3_client').start()
+        self.addCleanup(patch.stopall)
+        s3.head_object.return_value = {'ContentLength': 1024000}
+        body = Mock()
+        body.read.return_value = b'%PDF-1.4 fake'
+        s3.get_object.return_value = {'Body': body, 'ContentType': 'application/pdf'}
+        return s3
+
     def test_extract_document_info_valid(self):
         """Test extracting user ID and document ID from valid S3 key"""
         s3_key = 'user-abc123/doc-uuid-456/document.pdf'
@@ -225,6 +245,7 @@ class TestDocumentProcessor(unittest.TestCase):
     @patch('handler.wait_for_ingestion_job')
     def test_process_s3_record_success(self, mock_wait, mock_start, mock_update):
         """Test successful S3 record processing"""
+        self._mock_s3_pdf()
         mock_start.return_value = 'test-job-id'
         mock_wait.return_value = 'COMPLETE'
         
@@ -246,6 +267,7 @@ class TestDocumentProcessor(unittest.TestCase):
     @patch('handler.time.sleep')
     def test_process_s3_record_retry_logic(self, mock_sleep, mock_start, mock_update):
         """Test retry logic with exponential backoff"""
+        self._mock_s3_pdf()
         from botocore.exceptions import ClientError
         
         # Fail twice, then succeed
@@ -273,6 +295,7 @@ class TestDocumentProcessor(unittest.TestCase):
     @patch('handler.time.sleep')
     def test_process_s3_record_max_retries_exceeded(self, mock_sleep, mock_start, mock_update):
         """Test max retries exceeded"""
+        self._mock_s3_pdf()
         from botocore.exceptions import ClientError
         
         # Fail all attempts
