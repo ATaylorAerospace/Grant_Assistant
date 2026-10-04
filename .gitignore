@@ -90,3 +90,4 @@ python/eu_grants_full.json
 bc/common/local-env
 bc/*/.venv/
 react-aws/src/amplify_outputs.json
+bc/common/domain/

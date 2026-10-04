@@ -51,7 +51,7 @@ export class BedrockPromptsStack extends Stack {
         const exportPrefix = props.exportPrefix ? `${props.exportPrefix}-BedrockPrompts` : 'BedrockPrompts';
 
         // Load all prompt JSON files
-        const promptsDir = path.join(__dirname, '../../config/bedrock-prompts');
+        const promptsDir = path.join(__dirname, '../../config/domains/grants/prompts');
         const promptFiles = fs.readdirSync(promptsDir)
             .filter(f => f.endsWith('.json') && f !== 'manifest.json');
 

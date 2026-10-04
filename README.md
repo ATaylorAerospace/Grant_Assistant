@@ -314,9 +314,11 @@ Grant_Assistant/
 │   ├── custom/              # Custom CDK stacks (AgentCore, OpenSearch, Step Functions, KB)
 │   └── backend.ts           # Main backend configuration entry point
 ├── bc/                      # AgentCore agent source code
+│   ├── common/sources/      # Source connectors (grants.gov, EU portal) behind one GrantSource interface
+│   └── common/domain_config.py  # Loader for the domain config pack
 ├── chat-docs/               # In-app help documentation (indexed help content)
-├── config/                  # Bedrock managed prompts (per agency)
-├── docs/                    # Project documentation
+├── config/domains/grants/   # Domain pack: agency prompts, matcher weights, source endpoints
+├── docs/                    # Project documentation (ARCHITECTURE.md: platform vs domain)
 ├── installation/            # Deployment & cleanup scripts
 └── react-aws/               # React + TypeScript frontend (Amplify UI)
 ```
@@ -326,6 +328,8 @@ Grant_Assistant/
 | `amplify/functions/` | Grants search, KB management, proposal generation, chat handler — app functions on **Python 3.14**, agent-config on **Node.js 22** |
 | `amplify/custom/agentcore-stack.ts` | Five AgentCore agents with least-privilege IAM and AgentCore log-group scoping |
 | `bc/` | AgentCore agent runtime code (proposal generation, evaluator, converters) |
+| `bc/common/sources/` | The only code that talks to external grant databases; add a connector here to add a source — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| `config/domains/grants/` | Everything grants-specific as data: prompts, `matching.json` (scoring weights), `sources.json` |
 | `react-aws/` | React frontend integrated with the AppSync GraphQL API for real-time data |
 
 * * *
@@ -452,7 +456,7 @@ GROW2 uses **18 Amazon Bedrock managed prompts** to generate proposal sections, 
 
 > **Note on DOE prompts:** These cover DOE Office of Science basic research grants only. For OCED NOFOs, add custom prompts — see [Adding Custom Prompts](install_docs/reference/ADDING_PROMPTS.md).
 
-Prompts deploy automatically by CDK (`BedrockPromptsStack`). Source files live in `config/bedrock-prompts/`. To customize, edit the JSON and redeploy:
+Prompts deploy automatically by CDK (`BedrockPromptsStack`). Source files live in `config/domains/grants/prompts/`. To customize, edit the JSON and redeploy:
 
 ```bash
 ./installation/deploy-grow2-bootstrap.sh us-east-1
@@ -572,7 +576,7 @@ Stop it with Ctrl-C; `npx ampx sandbox delete` removes the personal stack. A san
 | An agent (`bc/*/agent.py`) | Tier 1 harness | deploy script (rebuilds only that image; the CodeBuild project keeps a Docker layer cache, so unchanged agents are no-ops) |
 | React UI | Tier 1 `npm start` | `./scripts/deploy-ui.sh <region>` — Vite build + Amplify Hosting manual deploy, ~2 min, no CodeBuild |
 | CDK / IAM / schema | `npm run typecheck` → Tier 2 sandbox | deploy script |
-| Bedrock prompts (`config/bedrock-prompts/`) | — | deploy script (CDK diffs only changed prompts) |
+| Bedrock prompts (`config/domains/grants/prompts/`) | — | deploy script (CDK diffs only changed prompts) |
 
 ### Replacing the Left Hand Nav Logo
 
@@ -603,6 +607,10 @@ GROW2 is built on AWS Amplify Gen 2, a code-first approach to building cloud bac
 - **Custom CDK stacks** — extend with any AWS service
 
 See the [Amplify Gen 2 Overview](install_docs/development/AMPLIFY_GEN2_OVERVIEW.md).
+
+### Platform vs domain
+
+GROW2 separates the reusable platform (auth, API, agents, knowledge base, UI shell, deploy) from the grants domain (source connectors in `bc/common/sources/`, the config pack in `config/domains/grants/`). Adding a funding database is a connector plus an entry in `sources.json`; retuning matching is an edit to `matching.json`; a different domain is a different pack. The map, the request flow and the step-by-step for adding a source are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ### Extending GROW2: Building a Deep Research Agent
 

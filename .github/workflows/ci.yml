@@ -54,6 +54,17 @@ jobs:
       - run: pip install pytest boto3 pypdf
       - run: ./scripts/test-lambdas.sh
 
+  agent-shared-tests:
+    name: Agent shared package (connectors, domain config)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest boto3 httpx
+      - run: python -m pytest bc/common/tests -q
+
   frontend-build:
     name: React app builds
     runs-on: ubuntu-latest

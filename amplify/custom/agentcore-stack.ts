@@ -20,6 +20,59 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import { NagSuppressions } from 'cdk-nag';
 import { Policy, PolicyStatement, Effect } from 'aws-cdk-lib/aws-iam';
 import { suppressAgentRoleWildcards } from './agentcore-stack-suppressions';
+import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+
+const __agentcoreDir = path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Docker build context for an agent image.
+ *
+ * The context is `bc/` (not `bc/<agent>/`) so every image can COPY the shared
+ * `bc/common/` package — source connectors and the domain config loader. The
+ * other agents' directories and local-dev leftovers are excluded so each
+ * asset's hash (and therefore its rebuild) only depends on `common/` and its
+ * own files.
+ */
+const AGENT_DIRS = [
+    'grants-search-agent-v2',
+    'eu-grants-search-agent-v2',
+    'pdf-converter-agent',
+    'proposal-evaluator-agent',
+    'proposal-generation-agent',
+];
+function agentArtifact(agentDir: string): agentcore.AgentRuntimeArtifact {
+    return agentcore.AgentRuntimeArtifact.fromAsset('./bc', {
+        file: `${agentDir}/Dockerfile`,
+        exclude: [
+            ...AGENT_DIRS.filter((d) => d !== agentDir),
+            'invoke-local.sh',
+            'common/local-env*',
+            'common/tests',
+            '**/.venv',
+            '**/__pycache__',
+            '**/sample-payload.json',
+            '**/README.md',
+            '**/test-*',
+        ],
+    });
+}
+
+/**
+ * Bake the domain config pack into the shared package before the assets are
+ * fingerprinted. `config/domains/<domain>/*.json` -> `bc/common/domain/`
+ * (git-ignored). Agents read it through common.domain_config.
+ */
+function syncDomainPack(domain: string): void {
+    const src = path.resolve(__agentcoreDir, '../../config/domains', domain);
+    const dest = path.resolve(__agentcoreDir, '../../bc/common/domain');
+    fs.rmSync(dest, { recursive: true, force: true });
+    fs.mkdirSync(dest, { recursive: true });
+    for (const f of fs.readdirSync(src)) {
+        if (f.endsWith('.json')) fs.copyFileSync(path.join(src, f), path.join(dest, f));
+    }
+}
 
 export interface AgentCoreStackProps {
     region?: string;  // Optional: explicit region for validation (defaults to stack region)
@@ -36,6 +89,7 @@ export interface AgentCoreStackProps {
     appsyncApiId: string;
     promptArns: string[];  // Bedrock prompt ARNs from BedrockPromptsStack
     deploymentId: string;  // Short id unique to this deployment (see backend.ts) — suffixes runtime names
+    domain?: string;       // Domain config pack under config/domains/ (default: grants)
 }
 
 export class AgentCoreStack extends Stack {
@@ -52,6 +106,8 @@ export class AgentCoreStack extends Stack {
         // This helps avoid token resolution issues during synthesis
         const deployRegion = props.region || this.region;
 
+        syncDomainPack(props.domain || 'grants');
+
         // DO NOT import tables/buckets - this creates CloudFormation dependencies!
         // Instead, use the names directly in IAM policies as ARN strings
 
@@ -67,9 +123,7 @@ export class AgentCoreStack extends Stack {
             deployRegion
         );
 
-        const usGrantsV2Artifact = agentcore.AgentRuntimeArtifact.fromAsset(
-            './bc/grants-search-agent-v2'
-        );
+        const usGrantsV2Artifact = agentArtifact('grants-search-agent-v2');
 
         const usGrantsV2Runtime = new agentcore.Runtime(this, 'UsGrantsSearchV2Runtime', {
             runtimeName: `grants_search_agent_v2_${props.deploymentId}`,
@@ -104,9 +158,7 @@ export class AgentCoreStack extends Stack {
             deployRegion
         );
 
-        const euGrantsV2Artifact = agentcore.AgentRuntimeArtifact.fromAsset(
-            './bc/eu-grants-search-agent-v2'
-        );
+        const euGrantsV2Artifact = agentArtifact('eu-grants-search-agent-v2');
 
         const euGrantsV2Runtime = new agentcore.Runtime(this, 'EuGrantsSearchV2Runtime', {
             runtimeName: `eu_grants_search_agent_v2_${props.deploymentId}`,
@@ -133,9 +185,7 @@ export class AgentCoreStack extends Stack {
         // ========================================================================
         const pdfConverterRole = this.createPdfConverterRole(props.proposalsBucketName, deployRegion);
 
-        const pdfConverterArtifact = agentcore.AgentRuntimeArtifact.fromAsset(
-            './bc/pdf-converter-agent'
-        );
+        const pdfConverterArtifact = agentArtifact('pdf-converter-agent');
 
         const pdfConverterRuntime = new agentcore.Runtime(this, 'PdfConverterRuntime', {
             runtimeName: `pdf_converter_agent_${props.deploymentId}`,
@@ -163,9 +213,7 @@ export class AgentCoreStack extends Stack {
             deployRegion
         );
 
-        const evaluatorArtifact = agentcore.AgentRuntimeArtifact.fromAsset(
-            './bc/proposal-evaluator-agent'
-        );
+        const evaluatorArtifact = agentArtifact('proposal-evaluator-agent');
 
         const evaluatorRuntime = new agentcore.Runtime(this, 'ProposalEvaluatorRuntime', {
             runtimeName: `proposal_evaluator_agent_${props.deploymentId}`,
@@ -203,9 +251,7 @@ export class AgentCoreStack extends Stack {
             props.promptArns                        // Pass prompt ARNs from BedrockPromptsStack
         );
 
-        const proposalGenArtifact = agentcore.AgentRuntimeArtifact.fromAsset(
-            './bc/proposal-generation-agent'
-        );
+        const proposalGenArtifact = agentArtifact('proposal-generation-agent');
 
         // ========================================================================
         // PROPOSAL GENERATION RUNTIME (Create last with sub-agent ARNs)

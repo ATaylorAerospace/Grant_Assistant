@@ -117,7 +117,7 @@ aws codebuild start-build \
 | Lambda function code | ✅ Yes | No |
 | CDK infrastructure (IAM, DynamoDB, etc.) | ✅ Yes | No |
 | AgentCore agent code (`bc/`) | ✅ Yes (Docker rebuild) | No |
-| Bedrock prompts (`config/bedrock-prompts/`) | ✅ Yes | No |
+| Bedrock prompts (`config/domains/grants/prompts/`) | ✅ Yes | No |
 | React UI (`react-aws/`) | ✅ Yes | ✅ Yes (seeder rebuilds UI) |
 | GraphQL schema (`amplify/data/`) | ✅ Yes | No |
 

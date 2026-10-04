@@ -4,7 +4,7 @@ GROW2 ships with 18 prompts covering NSF, NIH, DOD, European Commission, DOE (Of
 
 ## How Prompts Work
 
-Prompts are stored as JSON files in `config/bedrock-prompts/`. On every deploy, `BedrockPromptsStack` reads all `.json` files in that directory (excluding `manifest.json`) and creates or updates them as Amazon Bedrock managed prompts. No code changes are needed — just add a file and redeploy.
+Prompts are stored as JSON files in `config/domains/grants/prompts/`. On every deploy, `BedrockPromptsStack` reads all `.json` files in that directory (excluding `manifest.json`) and creates or updates them as Amazon Bedrock managed prompts. No code changes are needed — just add a file and redeploy.
 
 The proposal generation agent looks up prompts by agency prefix. For example, if the grant agency is `DOE`, it finds all prompts whose name starts with `DOE-`. The last hyphen-separated segment becomes the section name (e.g., `DOE-Prompt-TechnicalApproach` → section `TechnicalApproach`).
 
@@ -44,7 +44,7 @@ The proposal generation agent looks up prompts by agency prefix. For example, if
 
 1. Add detection logic in `bc/proposal-generation-agent/agent.py` in the `detect_agency()` function
 2. Create prompt JSON files following the naming convention above
-3. Update `config/bedrock-prompts/manifest.json` to include the new prompt names
+3. Update `config/domains/grants/prompts/manifest.json` to include the new prompt names
 4. Redeploy: `./installation/deploy-grow2-bootstrap.sh us-east-1`
 
 ## Adding Prompts for an Existing Agency

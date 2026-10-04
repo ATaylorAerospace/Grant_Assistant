@@ -214,7 +214,7 @@ phases:
         aws s3 sync react-aws/ s3://$APP_BUCKET/react-aws-source/ --region PLACEHOLDER_REGION --exclude "node_modules/*" --exclude "build/*" --exclude ".amplify/*" --exclude "*.log"
         echo "SUCCESS react-aws source uploaded"
         echo "Uploading bedrock prompts to app bucket..."
-        aws s3 sync config/bedrock-prompts/ s3://$APP_BUCKET/bedrock-prompts/ --region PLACEHOLDER_REGION
+        aws s3 sync config/domains/grants/prompts/ s3://$APP_BUCKET/bedrock-prompts/ --region PLACEHOLDER_REGION
         echo "SUCCESS bedrock prompts uploaded"
         echo "Uploading import script to app bucket..."
         aws s3 cp python/import_bedrock_prompts.py s3://$APP_BUCKET/scripts/import_bedrock_prompts.py --region PLACEHOLDER_REGION || true

@@ -2,7 +2,7 @@
 """
 Import production Bedrock prompts from JSON files to target region.
 
-This script imports the 10 production prompts from config/bedrock-prompts/
+This script imports the 10 production prompts from config/domains/grants/prompts/
 into the target AWS region's Bedrock Prompt Management.
 
 Used by CodeBuild during deployment to seed prompts automatically.
@@ -24,7 +24,7 @@ def import_prompts(target_region):
     bedrock = boto3.client('bedrock-agent', region_name=target_region)
     
     # Read manifest
-    prompts_dir = 'config/bedrock-prompts'
+    prompts_dir = 'config/domains/grants/prompts'
     manifest_file = f"{prompts_dir}/manifest.json"
     
     if not os.path.exists(manifest_file):

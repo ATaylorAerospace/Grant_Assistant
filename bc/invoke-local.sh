@@ -64,6 +64,11 @@ fi
 export AWS_REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-us-east-1}}"
 export AWS_DEFAULT_REGION="$AWS_REGION"
 
+# Shared package (bc/common) + domain config pack. In the image these sit next to
+# agent.py; locally we put bc/ on the path and point at config/domains/<domain>.
+export PYTHONPATH="$BC_DIR${PYTHONPATH:+:$PYTHONPATH}"
+export GROW2_DOMAIN_DIR="${GROW2_DOMAIN_DIR:-$BC_DIR/../config/domains/${GROW2_DOMAIN:-grants}}"
+
 # Per-agent virtualenv so requirements don't collide across agents
 VENV="$BC_DIR/$AGENT/.venv"
 if [ ! -x "$VENV/bin/python" ]; then

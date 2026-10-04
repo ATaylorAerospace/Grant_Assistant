@@ -1,3 +1,4 @@
+# Build context is bc/ (see agentArtifact() in amplify/custom/agentcore-stack.ts).
 # Shared layout for all GROW2 agents (see bc/invoke-local.sh for running locally):
 # one base image and the same layer order so CodeBuild's Docker layer cache is
 # reused across deploys. This agent additionally needs WeasyPrint's native libs.
@@ -19,11 +20,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Dependency layer — only rebuilt when requirements.txt changes.
-COPY requirements.txt .
+COPY pdf-converter-agent/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Application layer — rebuilt on every code change (cheap).
-COPY agent.py .
+# Shared package: source connectors + domain config (bc/common, incl. the
+# domain pack synced to common/domain/ at synth time).
+COPY common/ ./common/
+COPY pdf-converter-agent/agent.py .
 
 EXPOSE 8080
 CMD ["python", "agent.py"]

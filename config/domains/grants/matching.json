@@ -1,0 +1,51 @@
+{
+  "$comment": "Scoring weights for the grant matcher (bc/*/bayesian_matcher.py). Values were lifted verbatim from the code; tune here, not there. Keep likelihood ratios small (1.5-3x): matched features multiply.",
+
+  "researcherPriors": {
+    "$comment": "Base P(relevant) by researcher type; default applies to unknown types.",
+    "biomedical": 0.20,
+    "engineering": 0.15,
+    "social_science": 0.10,
+    "basic_science": 0.12,
+    "computer_science": 0.15,
+    "default": 0.10
+  },
+  "expertiseMultipliers": {
+    "expert": 1.2,
+    "advanced": 1.1,
+    "intermediate": 1.0,
+    "beginner": 0.9,
+    "default": 1.0
+  },
+  "earlyInvestigatorMultiplier": 1.1,
+  "priorCap": 0.30,
+
+  "featureLikelihoods": {
+    "$comment": "feature -> {relevant: P(feature|relevant), irrelevant: P(feature|irrelevant)}",
+    "isNIH":           { "relevant": 0.30, "irrelevant": 0.12 },
+    "isNSF":           { "relevant": 0.28, "irrelevant": 0.14 },
+    "isDOD":           { "relevant": 0.25, "irrelevant": 0.12 },
+    "isDOE":           { "relevant": 0.22, "irrelevant": 0.12 },
+    "isEmbassy":       { "relevant": 0.05, "irrelevant": 0.15 },
+    "isBiomedical":    { "relevant": 0.35, "irrelevant": 0.14 },
+    "isEngineering":   { "relevant": 0.32, "irrelevant": 0.16 },
+    "isBasicScience":  { "relevant": 0.25, "irrelevant": 0.14 },
+    "isAlzheimers":    { "relevant": 0.30, "irrelevant": 0.12 },
+    "isCancer":        { "relevant": 0.32, "irrelevant": 0.13 },
+    "isAI":            { "relevant": 0.34, "irrelevant": 0.17 },
+    "isClimateChange": { "relevant": 0.28, "irrelevant": 0.14 },
+    "isSmallBusiness": { "relevant": 0.20, "irrelevant": 0.12 },
+    "isEducation":     { "relevant": 0.28, "irrelevant": 0.16 },
+    "isInternational": { "relevant": 0.15, "irrelevant": 0.12 },
+    "hasLargeAmount":  { "relevant": 0.24, "irrelevant": 0.14 },
+    "hasMediumAmount": { "relevant": 0.35, "irrelevant": 0.30 },
+    "hasSmallAmount":  { "relevant": 0.28, "irrelevant": 0.32 }
+  },
+
+  "keywordWeights": {
+    "$comment": "Share of the keyword score per field. withTags/withoutTags are used by the US matcher depending on whether the grant carries tags; EU_FUNDING is used by the EU matcher.",
+    "withTags":    { "title": 0.4,  "description": 0.25,   "agency": 0.15,   "tags": 0.2 },
+    "withoutTags": { "title": 0.5,  "description": 0.3125, "agency": 0.1875, "tags": 0.0 },
+    "EU_FUNDING":  { "title": 0.5,  "description": 0.3,    "agency": 0.2,    "tags": 0.0 }
+  }
+}
