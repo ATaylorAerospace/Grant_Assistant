@@ -12,7 +12,7 @@ import amplifyOutputs from '../../amplify_outputs.json';
 const GRAPHQL_CONFIG = {
   httpEndpoint: amplifyOutputs.data?.url || 'https://3kdlhhfsivgoxfajgk7qesnuqu.appsync-api.us-east-1.amazonaws.com/graphql',
   wsEndpoint: amplifyOutputs.data?.url?.replace('appsync-api', 'appsync-realtime-api').replace('https://', 'wss://') || 'wss://3kdlhhfsivgoxfajgk7qesnuqu.appsync-realtime-api.us-east-1.amazonaws.com/graphql',
-  apiKey: amplifyOutputs.data?.api_key || process.env.REACT_APP_APPSYNC_API_KEY, // Load from amplify_outputs or env var
+  apiKey: amplifyOutputs.data?.api_key || import.meta.env.VITE_APPSYNC_API_KEY, // Load from amplify_outputs or env var
   region: amplifyOutputs.data?.aws_region || 'us-east-1'
 };
 

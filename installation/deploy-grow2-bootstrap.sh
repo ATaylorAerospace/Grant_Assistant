@@ -16,7 +16,20 @@
 # PREREQUISITES (automatically checked by script):
 #   - AWS CLI v2+ installed and configured
 #   - Node.js 18+ and npm installed
-#   - AWS credentials configured with admin access
+#   - AWS credentials configured with admin access (or the scoped operator
+#     policy — see installation/iam/README.md)
+#
+# ENVIRONMENT VARIABLES (all optional):
+#   GROW2_ENV=dev|prod            prod retains data on delete, enables deletion
+#                                 protection + PITR on every table, and skips the
+#                                 demo user. Default: dev.
+#   GROW2_IDENTIFIER=<name>       Deploy a separately named stack (per-developer
+#                                 sandboxes, dev + prod in one region). Pass the
+#                                 same value to delete-grow2.sh. Default: unset —
+#                                 keeps the stack name existing installs have.
+#   GROW2_DEPLOYER_POLICY_ARN=arn Attach this policy to the CodeBuild role instead
+#                                 of AdministratorAccess (installation/iam/).
+#   SEED_TEST_USER_PASSWORD=...   Known password for the demo user (dev only).
 #   - ~50GB free disk space
 #   - Internet connection for npm packages
 #

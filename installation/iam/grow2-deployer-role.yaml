@@ -1,0 +1,118 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  GROW2 deployer role. Attached to the CodeBuild project that deploys the stack
+  (installation/deploy-via-codebuild.sh) in place of AdministratorAccess. Create
+  it once per account with an administrator; every later deploy only needs the
+  operator permissions in grow2-operator-policy.json.
+
+Parameters:
+  RoleName:
+    Type: String
+    Default: grow2-codebuild-deployer-role
+    Description: Must match CB_ROLE_NAME in installation/deploy-via-codebuild.sh.
+
+Resources:
+  DeployerPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub "${RoleName}-policy"
+      Description: Services the GROW2 CDK/Amplify deployment creates and manages.
+      # Keep in sync with grow2-deployer-policy.json (the JSON is the reference copy).
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: CdkBootstrapAndCloudFormation
+            Effect: Allow
+            Action: ["cloudformation:*"]
+            Resource: "*"
+          - Sid: CdkAssumeBootstrapRoles
+            Effect: Allow
+            Action: sts:AssumeRole
+            Resource: "arn:aws:iam::*:role/cdk-*"
+          - Sid: AmplifyBackendServices
+            Effect: Allow
+            Action:
+              - amplify:*
+              - appsync:*
+              - cognito-idp:*
+              - cognito-identity:*
+              - dynamodb:*
+              - lambda:*
+              - events:*
+              - scheduler:*
+              - states:*
+              - sqs:*
+              - logs:*
+              - cloudwatch:*
+              - ssm:GetParameter*
+              - ssm:PutParameter
+              - ssm:DeleteParameter*
+              - ssm:AddTagsToResource
+              - ssm:ListTagsForResource
+              - ssm:DescribeParameters
+            Resource: "*"
+          - Sid: StorageAndContainers
+            Effect: Allow
+            Action: ["s3:*", "ecr:*"]
+            Resource: "*"
+          - Sid: AiServices
+            Effect: Allow
+            Action: ["bedrock:*", "bedrock-agentcore:*", "aoss:*"]
+            Resource: "*"
+          - Sid: EdgeAndBuild
+            Effect: Allow
+            Action: ["wafv2:*", "codebuild:*"]
+            Resource: "*"
+          - Sid: IamForStackRoles
+            Effect: Allow
+            Action:
+              - iam:CreateRole
+              - iam:DeleteRole
+              - iam:GetRole
+              - iam:UpdateRole
+              - iam:UpdateAssumeRolePolicy
+              - iam:PassRole
+              - iam:TagRole
+              - iam:UntagRole
+              - iam:PutRolePolicy
+              - iam:DeleteRolePolicy
+              - iam:GetRolePolicy
+              - iam:AttachRolePolicy
+              - iam:DetachRolePolicy
+              - iam:ListRolePolicies
+              - iam:ListAttachedRolePolicies
+              - iam:CreatePolicy
+              - iam:DeletePolicy
+              - iam:GetPolicy
+              - iam:GetPolicyVersion
+              - iam:CreatePolicyVersion
+              - iam:DeletePolicyVersion
+              - iam:ListPolicyVersions
+              - iam:CreateServiceLinkedRole
+            Resource: "*"
+          - Sid: Identity
+            Effect: Allow
+            Action: ["sts:GetCallerIdentity"]
+            Resource: "*"
+
+  DeployerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref RoleName
+      Description: Assumed by the GROW2 deployer and seeder CodeBuild projects.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref DeployerPolicy
+
+Outputs:
+  RoleArn:
+    Value: !GetAtt DeployerRole.Arn
+  PolicyArn:
+    Description: Export as GROW2_DEPLOYER_POLICY_ARN before running deploy-grow2-bootstrap.sh.
+    Value: !Ref DeployerPolicy

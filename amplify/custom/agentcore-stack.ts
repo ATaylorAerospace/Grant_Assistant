@@ -35,6 +35,7 @@ export interface AgentCoreStackProps {
     knowledgeBaseId: string;
     appsyncApiId: string;
     promptArns: string[];  // Bedrock prompt ARNs from BedrockPromptsStack
+    deploymentId: string;  // Short id unique to this deployment (see backend.ts) — suffixes runtime names
 }
 
 export class AgentCoreStack extends Stack {
@@ -71,7 +72,7 @@ export class AgentCoreStack extends Stack {
         );
 
         const usGrantsV2Runtime = new agentcore.Runtime(this, 'UsGrantsSearchV2Runtime', {
-            runtimeName: 'grants_search_agent_v2',
+            runtimeName: `grants_search_agent_v2_${props.deploymentId}`,
             agentRuntimeArtifact: usGrantsV2Artifact,
             executionRole: usGrantsV2Role,
             description: 'US Grants Search Agent V2 - CDK Deployed',
@@ -108,7 +109,7 @@ export class AgentCoreStack extends Stack {
         );
 
         const euGrantsV2Runtime = new agentcore.Runtime(this, 'EuGrantsSearchV2Runtime', {
-            runtimeName: 'eu_grants_search_agent_v2',
+            runtimeName: `eu_grants_search_agent_v2_${props.deploymentId}`,
             agentRuntimeArtifact: euGrantsV2Artifact,
             executionRole: euGrantsV2Role,
             description: 'EU Grants Search Agent V2 - CDK Deployed - v1.2',
@@ -137,7 +138,7 @@ export class AgentCoreStack extends Stack {
         );
 
         const pdfConverterRuntime = new agentcore.Runtime(this, 'PdfConverterRuntime', {
-            runtimeName: 'pdf_converter_agent',
+            runtimeName: `pdf_converter_agent_${props.deploymentId}`,
             agentRuntimeArtifact: pdfConverterArtifact,
             executionRole: pdfConverterRole,
             description: 'PDF Converter Agent - CDK Deployed',
@@ -167,7 +168,7 @@ export class AgentCoreStack extends Stack {
         );
 
         const evaluatorRuntime = new agentcore.Runtime(this, 'ProposalEvaluatorRuntime', {
-            runtimeName: 'proposal_evaluator_agent',
+            runtimeName: `proposal_evaluator_agent_${props.deploymentId}`,
             agentRuntimeArtifact: evaluatorArtifact,
             executionRole: evaluatorRole,
             description: 'Proposal Evaluator Agent - CDK Deployed - v1.1',
@@ -211,7 +212,7 @@ export class AgentCoreStack extends Stack {
         // ========================================================================
         // Now that PDF converter and evaluator are created, we can include their ARNs
         const proposalGenRuntime = new agentcore.Runtime(this, 'ProposalGenerationRuntime', {
-            runtimeName: 'proposal_generation_agent',
+            runtimeName: `proposal_generation_agent_${props.deploymentId}`,
             agentRuntimeArtifact: proposalGenArtifact,
             executionRole: proposalGenRole,
             description: 'Proposal Generation Agent - CDK Deployed - v1.2',

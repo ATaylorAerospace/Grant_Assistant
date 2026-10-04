@@ -72,6 +72,37 @@ echo "AWS Account: $ACCOUNT_ID"
 echo "Region: $DELETE_REGION"
 echo ""
 
+# ----------------------------------------------------------------------------
+# Which deployment? With several GROW2 deployments in one region (per-developer
+# sandboxes, dev + prod), GROW2_IDENTIFIER selects the root stack to delete —
+# the same value passed to the deploy. Unset = legacy behaviour (shortest
+# amplify-grow2-* root stack). Everything suffixed with the deployment id
+# (AgentCore runtimes, OpenSearch collection, ECR repos) is scoped to it.
+# ----------------------------------------------------------------------------
+ROOT_PREFIX="amplify-grow2-${GROW2_IDENTIFIER:+${GROW2_IDENTIFIER}-}"
+ROOT_STACK=$(aws cloudformation list-stacks \
+  --region "$DELETE_REGION" \
+  --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE ROLLBACK_COMPLETE DELETE_FAILED \
+  --query "StackSummaries[?starts_with(StackName, \`${ROOT_PREFIX}\`)].StackName" \
+  --output text 2>/dev/null | tr '\t' '\n' | grep -v '^$' | \
+  awk '{ print length, $0 }' | sort -n | head -1 | awk '{print $2}')
+DEPLOYMENT_ID="${ROOT_STACK##*-}"
+OTHER_ROOT_STACKS=$(aws cloudformation list-stacks \
+  --region "$DELETE_REGION" \
+  --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE ROLLBACK_COMPLETE DELETE_FAILED \
+  --query 'StackSummaries[?starts_with(StackName, `amplify-grow2-`)].StackName' \
+  --output text 2>/dev/null | tr '\t' '\n' | grep -v '^$' | grep -v "^${ROOT_STACK:-__none__}" | grep -vc '^$' || true)
+if [ -n "$ROOT_STACK" ]; then
+  echo "Target deployment: $ROOT_STACK (id: $DEPLOYMENT_ID)"
+  if [ "${OTHER_ROOT_STACKS:-0}" -gt 0 ]; then
+    echo "NOTE: $OTHER_ROOT_STACKS other GROW2 deployment(s) exist in $DELETE_REGION."
+    echo "      Account-wide sweeps in Phase 2 (tables, Amplify apps, prompts, log groups) are skipped to protect them."
+  fi
+else
+  echo "No root stack matched '${ROOT_PREFIX}*' — only orphaned resources will be cleaned up."
+fi
+echo ""
+
 empty_s3_buckets() {
   local BUCKETS
   BUCKETS=$(aws s3api list-buckets \
@@ -84,9 +115,11 @@ empty_s3_buckets() {
       [ "$BUCKET_REGION" = "None" ] && BUCKET_REGION="us-east-1"
       if [ "$BUCKET_REGION" = "$DELETE_REGION" ]; then
         echo "  - Emptying: $bucket"
-        aws s3 rm "s3://$bucket" --recursive --region "$DELETE_REGION" 2>/dev/null || true
+        # Buckets are independent — empty them concurrently.
+        aws s3 rm "s3://$bucket" --recursive --region "$DELETE_REGION" >/dev/null 2>&1 || true &
       fi
     done
+    wait
   fi
 }
 
@@ -106,7 +139,7 @@ echo ""
 echo "Finding Amazon OpenSearch Serverless collections..."
 COLLECTIONS=$(aws opensearchserverless list-collections \
   --region "$DELETE_REGION" \
-  --query 'collectionSummaries[?contains(name, `grow2`) || contains(name, `amplify`)].id' \
+  --query "collectionSummaries[?ends_with(name, \`-${DEPLOYMENT_ID:-__none__}\`)].id" \
   --output text 2>/dev/null || echo "")
 if [ -n "$COLLECTIONS" ]; then
   for collection_id in $COLLECTIONS; do
@@ -122,7 +155,7 @@ echo ""
 echo "Deleting Amazon Bedrock AgentCore Runtimes (before CFN stack deletion)..."
 AGENT_RUNTIMES=$(aws bedrock-agentcore list-agent-runtimes \
   --region "$DELETE_REGION" \
-  --query 'agentRuntimes[].agentRuntimeId' \
+  --query "agentRuntimes[?ends_with(agentRuntimeName, \`_${DEPLOYMENT_ID:-__none__}\`)].agentRuntimeId" \
   --output text 2>/dev/null || echo "")
 if [ -n "$AGENT_RUNTIMES" ]; then
   for runtime_id in $AGENT_RUNTIMES; do
@@ -164,13 +197,6 @@ echo "Phase 1: Deleting CloudFormation Stacks"
 echo "================================================"
 echo ""
 
-ROOT_STACK=$(aws cloudformation list-stacks \
-  --region "$DELETE_REGION" \
-  --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE ROLLBACK_COMPLETE DELETE_FAILED \
-  --query 'StackSummaries[?starts_with(StackName, `amplify-grow2-`)].StackName' \
-  --output text 2>/dev/null | tr '\t' '\n' | grep -v '^$' | \
-  awk '{ print length, $0 }' | sort -n | head -1 | awk '{print $2}')
-
 if [ -z "$ROOT_STACK" ]; then
   echo "  No root stack found (may already be deleted)"
 else
@@ -181,7 +207,7 @@ else
   AGENTCORE_STACK=$(aws cloudformation list-stacks \
     --region "$DELETE_REGION" \
     --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE ROLLBACK_COMPLETE DELETE_FAILED \
-    --query 'StackSummaries[?contains(StackName, `AgentCore`) && contains(StackName, `grow2`)].StackName' \
+    --query "StackSummaries[?contains(StackName, \`AgentCore\`) && starts_with(StackName, \`${ROOT_STACK}\`)].StackName" \
     --output text 2>/dev/null | tr '\t' '\n' | grep -v '^$' | head -1)
 
   if [ -n "$AGENTCORE_STACK" ]; then
@@ -198,7 +224,7 @@ else
   DATA_STACK=$(aws cloudformation list-stacks \
     --region "$DELETE_REGION" \
     --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE ROLLBACK_COMPLETE DELETE_FAILED \
-    --query 'StackSummaries[?contains(StackName, `-data`) && contains(StackName, `grow2`)].StackName' \
+    --query "StackSummaries[?contains(StackName, \`-data\`) && starts_with(StackName, \`${ROOT_STACK}\`)].StackName" \
     --output text 2>/dev/null | tr '\t' '\n' | grep -v '^$' | head -1)
 
   if [ -n "$DATA_STACK" ]; then
@@ -293,6 +319,7 @@ else
 fi
 echo ""
 
+if [ "${OTHER_ROOT_STACKS:-0}" -gt 0 ]; then echo "Skipping account-wide sweep (other deployments present)"; else
 echo "Deleting retained DynamoDB tables..."
 TABLES=$(aws dynamodb list-tables \
   --region "$DELETE_REGION" \
@@ -306,6 +333,7 @@ if [ -n "$TABLES" ]; then
   echo "DynamoDB tables deleted"
 else
   echo "  No retained DynamoDB tables found"
+fi
 fi
 echo ""
 
@@ -342,6 +370,7 @@ else
 fi
 echo ""
 
+if [ "${OTHER_ROOT_STACKS:-0}" -gt 0 ]; then echo "Skipping account-wide sweep (other deployments present)"; else
 echo "Deleting AWS Amplify Apps..."
 APPS=$(aws amplify list-apps \
   --region "$DELETE_REGION" \
@@ -356,12 +385,13 @@ if [ -n "$APPS" ]; then
 else
   echo "  No Amplify Apps found"
 fi
+fi
 echo ""
 
 echo "Deleting Amazon Bedrock AgentCore Runtimes..."
 AGENT_RUNTIMES=$(aws bedrock-agentcore list-agent-runtimes \
   --region "$DELETE_REGION" \
-  --query 'agentRuntimes[].{Name:agentRuntimeName,ID:agentRuntimeId}' \
+  --query "agentRuntimes[?ends_with(agentRuntimeName, \`_${DEPLOYMENT_ID:-__none__}\`)].{Name:agentRuntimeName,ID:agentRuntimeId}" \
   --output text 2>/dev/null || echo "")
 if [ -n "$AGENT_RUNTIMES" ]; then
   echo "$AGENT_RUNTIMES" | while read -r name runtime_id; do
@@ -377,7 +407,7 @@ echo ""
 echo "Deleting ECR repositories..."
 ECR_REPOS=$(aws ecr describe-repositories \
   --region "$DELETE_REGION" \
-  --query 'repositories[?starts_with(repositoryName, `bedrock-agentcore-`) || repositoryName==`pdf-converter-agent`].repositoryName' \
+  --query "repositories[?(starts_with(repositoryName, \`bedrock-agentcore-\`) || repositoryName==\`pdf-converter-agent\`) && contains(repositoryName, \`${DEPLOYMENT_ID:-__none__}\`)].repositoryName" \
   --output text 2>/dev/null || echo "")
 if [ -n "$ECR_REPOS" ]; then
   for repo in $ECR_REPOS; do

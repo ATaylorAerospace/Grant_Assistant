@@ -26,6 +26,7 @@ const __dirname = path.dirname(__filename);
 
 export interface BedrockPromptsStackProps {
     region?: string;
+    exportPrefix?: string;  // Makes export names unique per deployment (see amplify/custom/deployment.ts)
 }
 
 interface PromptData {
@@ -47,6 +48,7 @@ export class BedrockPromptsStack extends Stack {
         super(scope, id);
 
         const deployRegion = props.region || this.region;
+        const exportPrefix = props.exportPrefix ? `${props.exportPrefix}-BedrockPrompts` : 'BedrockPrompts';
 
         // Load all prompt JSON files
         const promptsDir = path.join(__dirname, '../../config/bedrock-prompts');
@@ -71,13 +73,13 @@ export class BedrockPromptsStack extends Stack {
             new CfnOutput(this, `${promptName}Arn`, {
                 value: prompt.attrArn,
                 description: `ARN for ${promptName}`,
-                exportName: `BedrockPrompts-${promptName}-Arn`,
+                exportName: `${exportPrefix}-${promptName}-Arn`,
             });
 
             new CfnOutput(this, `${promptName}Id`, {
                 value: prompt.attrId,
                 description: `ID for ${promptName}`,
-                exportName: `BedrockPrompts-${promptName}-Id`,
+                exportName: `${exportPrefix}-${promptName}-Id`,
             });
         }
 

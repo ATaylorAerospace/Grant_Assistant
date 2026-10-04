@@ -7,7 +7,7 @@ starts (cold start) or scales, it creates a **new log stream**. A single
 proposal run may span multiple streams. All streams are named with the
 prefix `[runtime-logs]` — there are no separate "app-logs" streams.
 
-The log group names are:
+The log group names are (runtime names carry a `_<deployment id>` suffix — e.g. `proposal_generation_agent_a1b2c3d4` — so several GROW2 deployments can share a region; the examples below show the pre-suffix form):
 
 | Agent | Log Group |
 |-------|-----------|
