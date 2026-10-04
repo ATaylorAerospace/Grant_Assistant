@@ -2,7 +2,7 @@
 
 <div align="left">
 
-[🚀 Quick Start](#-quick-start-deployment) · [🤖 Agents](#-agent-system) · [🛡️ Security](#️-security) · [👩‍💻 Dev](#-development) · [🧹 Cleanup](#-cleanup)
+[🚀 Quick Start](#-quick-start-deployment) · [🆕 What's New](#-whats-new-in-this-fork) · [🤖 Agents](#-agent-system) · [🌍 Environments](#-environments--multiple-deployments) · [🛡️ Security](#️-security) · [🧪 Local Dev](#local-development) · [✅ Validation](#-validating-a-deployment) · [🧹 Cleanup](#-cleanup)
 
 </div>
 
@@ -18,9 +18,13 @@
 [![Node.js](https://img.shields.io/badge/Node.js-22.x-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)
 [![AWS Bedrock](https://img.shields.io/badge/AWS-Bedrock%20AgentCore-FF9900?logo=amazonaws&logoColor=white)](https://aws.amazon.com/bedrock/)
 [![Claude](https://img.shields.io/badge/Claude-Opus%205%20%7C%20Sonnet%205-D97757)](https://www.anthropic.com)
-[![React](https://img.shields.io/badge/React-Frontend-61DAFB?logo=react&logoColor=white)](https://react.dev)
+[![React](https://img.shields.io/badge/React-18%20%2B%20Vite-61DAFB?logo=react&logoColor=white)](https://react.dev)
+[![CI](https://github.com/ATaylorAerospace/Grant_Assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/ATaylorAerospace/Grant_Assistant/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-206%20passing-brightgreen?logo=pytest&logoColor=white)](#testing--ci)
 
-> 🚧 **Status:** Five AgentCore agents stable · Cross-region inference (US/EU) · Guardrails + WAF active · One-command CloudShell deploy
+> 🚧 **Status:** Five AgentCore agents stable · Cross-region inference (US/EU) · Guardrails + WAF active · One-command CloudShell deploy · Multiple deployments per region · `dev`/`prod` hardening · CI on every PR
+>
+> 🧪 **Validation:** the multi-deployment, IAM and environment changes are type-checked and unit-tested but **not yet exercised against a live AWS account** — see [Validating a deployment](#-validating-a-deployment).
 
 </div>
 
@@ -38,11 +42,11 @@ GROW2 is a multi-agent system built on **Amazon Bedrock AgentCore** that helps r
 
 ## ⚙️ Important Disclaimers
 
-- The stacks these templates create are for **demonstration purposes only**
-- Deploy in a **non-production account** with no other resources
-- The delete script removes AWS services associated with the root stack
-- Several deployments can share an account and region (per-developer sandboxes, dev + prod) by setting `GROW2_IDENTIFIER` — see *Environments & multiple deployments*
-- The stack creates resources that **incur costs**
+- Start in a **non-production account**. The default `GROW2_ENV=dev` is tuned for demos and sandboxes (everything is deleted on teardown); `GROW2_ENV=prod` retains data, protects tables and skips demo seeding — see [Environments](#-environments--multiple-deployments)
+- Several deployments can share an account and region (per-developer sandboxes, dev + prod) by setting `GROW2_IDENTIFIER`
+- The delete script removes only the deployment it is pointed at, and skips account-wide sweeps when other deployments exist
+- The stack creates resources that **incur costs** — OpenSearch Serverless bills continuously; tear down when idle
+- The public surface is a Cognito + MFA login page; the API is Cognito-authenticated and WAF rate-limited, storage is private
 - Review the **LICENSE** file — all files in this repo fall under those terms
 
 * * *
@@ -131,6 +135,52 @@ flowchart TB
     classDef data fill:#2563eb,stroke:#1e40af,color:#fff;
     classDef ext fill:#6b7280,stroke:#374151,color:#fff;
 ```
+
+### 🧩 Platform and domain layers
+
+The codebase is split so that the reusable **platform** never needs to change when the **domain** does. Grants-specific knowledge is data in a config pack plus two source connectors; everything else is generic infrastructure. The full map and the four-step recipe for adding a funding source are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+```mermaid
+%%{init: {'theme':'base','themeVariables':{'fontSize':'16px','clusterBkg':'#e5e7eb','clusterBorder':'#9ca3af','titleColor':'#0b0f19','textColor':'#0b0f19','nodeTextColor':'#0b0f19','lineColor':'#9ca3af'}}}%%
+flowchart LR
+    subgraph DOMAIN["<b>🎯 Domain — research grants (data + connectors)</b>"]
+        direction TB
+        PACK["📦 config/domains/grants/<br/>prompts · matching.json · sources.json"]:::dom
+        CONN["🔌 bc/common/sources/<br/>GrantsGovSource · EuFundingPortalSource"]:::dom
+    end
+    subgraph PLATFORM["<b>🏗️ Platform — reusable (code)</b>"]
+        direction TB
+        AG["🤖 Agents<br/>bc/*/agent.py · orchestration, A2A, persistence"]:::plat
+        MATCH["⚖️ Matcher<br/>bc/common/matching.py evaluates matching.json"]:::plat
+        INFRA["☁️ Amplify Gen2 + CDK<br/>auth · API · KB · guardrail · WAF · deploy"]:::plat
+        UI["⚛️ React shell<br/>react-aws/"]:::plat
+    end
+    PACK -- "weights, features,<br/>endpoints, prompts" --> MATCH & CONN & INFRA
+    CONN -- "UI-format grants" --> AG
+    MATCH --> AG
+    AG --> INFRA --> UI
+    classDef dom fill:#d97757,stroke:#9a3412,color:#fff;
+    classDef plat fill:#2563eb,stroke:#1e40af,color:#fff;
+```
+
+* * *
+
+## 🆕 What's new in this fork
+
+This fork modernizes the original AWS sample into a maintainable application. The headline changes, each with where to read more:
+
+| Area | What changed | Read more |
+|------|--------------|-----------|
+| 🧪 **Local development loop** | Three tiers — unit tests + type-check in seconds, agents on `localhost:8080` and the UI on `:3000` against a deployed backend, per-developer `ampx sandbox` with Lambda hot-swap. Harness: `bc/invoke-local.sh`; outputs: `scripts/fetch-outputs.sh` | [Local Development](#local-development) |
+| ✅ **CI on every PR** | GitHub Actions: backend `tsc`, byte-compile of every handler/agent, 81 Lambda unit tests, 125 shared-package tests (connectors, domain config, matcher goldens), Vite build. Nothing touches AWS | [Testing & CI](#testing--ci) |
+| ⚡ **Faster deploys** | CodeBuild Docker-layer + source caching; one pinned base image and identical pip layer across agents; CRA → **Vite** (build 13 s); `scripts/deploy-ui.sh` publishes a UI change in ~2 min with no CodeBuild | [What a change needs](#local-development) |
+| 🌍 **Multiple deployments per region** | Every account-unique name (AgentCore runtimes, Guardrail, WAF, OpenSearch collection, KB bucket, CodeBuild seeder, all CloudFormation exports) is suffixed with a per-deployment id; `GROW2_IDENTIFIER` selects a stack; teardown is scoped | [Environments](#-environments--multiple-deployments) |
+| 🔒 **`dev` / `prod` hardening** | `GROW2_ENV=prod`: RETAIN on data, PITR + deletion protection on every table, Lambda log retention, no demo user | [Environments](#-environments--multiple-deployments) |
+| 🪪 **Deploy without AdministratorAccess** | One-time admin setup (CDK bootstrap + deployer role), then a scoped operator policy for every deploy | [`installation/iam/`](installation/iam/README.md) |
+| 🧩 **Platform / domain split** | Source connectors behind one `GrantSource` interface; a domain config pack (`prompts/`, `matching.json`, `sources.json`); the two per-agent matchers collapsed into one config-driven `bc/common/matching.py` with golden tests pinning the original numbers | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| 📋 **Validation runbook** | A seven-step live-deploy check (two stacks in one region, scoped IAM, prod hardening, scoped teardown) and `scripts/validate-deployment.sh` to automate it | [Validating a deployment](#-validating-a-deployment) |
+| 🧹 **Hygiene** | Dead agents/stacks removed; no credentials, stale endpoints, foreign account ids or hard-coded passwords in the tree or history; Lambda tests brought back in sync with the handlers | [Security](#️-security) |
+
 * * *
 ## 🤖 Agent System
 
@@ -227,6 +277,8 @@ CloudShell exits after ~5 minutes with a CodeBuild link. You can close it — Co
 
 > 🔄 **If your session disconnects before the script exits:** Re-open CloudShell and re-run. The script is idempotent — it reuses the existing CDK bootstrap and updates the CodeBuild project.
 
+Optional environment variables on that command: `GROW2_ENV=prod` (data retention + table protection), `GROW2_IDENTIFIER=<name>` (a separately named stack), `GROW2_DEPLOYER_POLICY_ARN=…` (scoped IAM instead of AdministratorAccess), `SEED_TEST_USER_PASSWORD=…` (known demo password, dev only). Details in [Environments & multiple deployments](#-environments--multiple-deployments).
+
 ### Step 3b — Verify both CodeBuild projects succeeded
 
 > ⚠️ **Do not proceed to Step 4 until both projects show Succeeded.** The script exits after starting the build — it cannot detect failures.
@@ -301,26 +353,43 @@ This walkthrough verifies the full pipeline — knowledge base upload, grant sea
 3. Come back in about 10 minutes, go to **Proposals**, and refresh
 4. Once complete, the proposal will be available to view and download
 
+### Step 6 — Validate the deployment (optional, 1 minute)
+
+From any machine with the AWS CLI, check the stack against what this version of the code expects — exports, runtime names, Guardrail/WAF attachment, Knowledge Base, seeder, hosted UI — and optionally run a live search through the US agent:
+
+```bash
+./scripts/validate-deployment.sh us-east-2 --expect-env dev --smoke
+```
+
+Every line prints `PASS` / `FAIL` / `WARN`; the exit code is non-zero on any `FAIL`. See [Validating a deployment](#-validating-a-deployment).
+
 * * *
 
 ## 📁 Project Structure
 
 ```
 Grant_Assistant/
-├── amplify/                 # AWS Amplify Gen2 backend (TypeScript CDK)
-│   ├── auth/                # Cognito authentication configuration
-│   ├── data/                # GraphQL schema and DynamoDB table definitions
-│   ├── functions/           # Lambda implementations (Python 3.14 / Node.js 22)
-│   ├── custom/              # Custom CDK stacks (AgentCore, OpenSearch, Step Functions, KB)
-│   └── backend.ts           # Main backend configuration entry point
-├── bc/                      # AgentCore agent source code
-│   ├── common/sources/      # Source connectors (grants.gov, EU portal) behind one GrantSource interface
-│   └── common/domain_config.py  # Loader for the domain config pack
-├── chat-docs/               # In-app help documentation (indexed help content)
-├── config/domains/grants/   # Domain pack: agency prompts, matcher weights, source endpoints
-├── docs/                    # Project documentation (ARCHITECTURE.md: platform vs domain)
-├── installation/            # Deployment & cleanup scripts
-└── react-aws/               # React + TypeScript frontend (Amplify UI)
+├── .github/workflows/ci.yml  # CI: type-check, byte-compile, Lambda + shared tests, Vite build
+├── amplify/                  # AWS Amplify Gen2 backend (TypeScript CDK)
+│   ├── auth/                 # Cognito authentication configuration
+│   ├── data/                 # GraphQL schema and DynamoDB table definitions
+│   ├── functions/            # Lambda implementations (Python 3.14 / Node.js 22) + test_handler.py suites
+│   ├── custom/               # Custom CDK stacks (AgentCore, OpenSearch, prompts, seeder)
+│   │   └── deployment.ts     # Per-deployment id + dev/prod config used by every stack
+│   └── backend.ts            # Main backend configuration entry point
+├── bc/                       # AgentCore agent source code (one Docker image per agent, built from bc/)
+│   ├── common/sources/       # Source connectors (grants.gov, EU portal) behind one GrantSource interface
+│   ├── common/matching.py    # Config-driven Bayesian + keyword matcher shared by the search agents
+│   ├── common/domain_config.py  # Loader for the domain config pack
+│   ├── common/tests/         # Connector, config and matcher tests (incl. golden fixtures)
+│   └── invoke-local.sh       # Run any agent on localhost:8080 and invoke it
+├── chat-docs/                # In-app help documentation (indexed help content)
+├── config/domains/grants/    # Domain pack: agency prompts, matching.json, sources.json
+├── docs/ARCHITECTURE.md      # Platform vs domain map, request flow, how to add a source
+├── install_docs/             # Deployment, validation runbook, maintenance, logging guides
+├── installation/             # CloudShell deploy, CodeBuild, teardown; iam/ = scoped deployer policies
+├── scripts/                  # fetch-outputs · deploy-ui · validate-deployment · test-lambdas
+└── react-aws/                # React 18 + Vite frontend (Amplify UI)
 ```
 
 | Path | Description |
@@ -330,7 +399,9 @@ Grant_Assistant/
 | `bc/` | AgentCore agent runtime code (proposal generation, evaluator, converters) |
 | `bc/common/sources/` | The only code that talks to external grant databases; add a connector here to add a source — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | `config/domains/grants/` | Everything grants-specific as data: prompts, `matching.json` (scoring weights), `sources.json` |
-| `react-aws/` | React frontend integrated with the AppSync GraphQL API for real-time data |
+| `react-aws/` | React 18 + Vite frontend integrated with the AppSync GraphQL API for real-time data |
+| `scripts/` | `fetch-outputs.sh` (local UI config), `deploy-ui.sh` (2-minute UI deploy), `validate-deployment.sh` (post-deploy checks), `test-lambdas.sh` (unit tests) |
+| `installation/iam/` | Scoped deployer role template + operator policy for deploying without AdministratorAccess |
 
 * * *
 ## ✅ Prerequisites
@@ -373,8 +444,11 @@ Every name that must be unique in an account/region — AgentCore runtimes, the 
 - Amazon OpenSearch Serverless collection for vector search
 - Amazon Bedrock Knowledge Base
 - Amazon EventBridge schedules (nightly EU cache download, agent discovery)
-- AWS CodeBuild projects (React deploy to Amplify Hosting + post-deploy seeder)
-- Bedrock Guardrail for prompt injection protection
+- AWS CodeBuild projects (ARM64 deployer + post-deploy seeder that builds the Vite UI and publishes to Amplify Hosting)
+- Bedrock Guardrail for prompt injection protection and an AWS WAF WebACL on the API
+- CloudWatch log retention on every Lambda (1 month in `dev`, 1 year in `prod`)
+
+Every name that must be unique in the account/region carries the deployment id (e.g. `proposal_generation_agent_a1b2c3d4`, `GROW2-a1b2c3d4-KnowledgeBaseId`), so a second deployment never collides with the first.
 
 * * *
 
@@ -478,6 +552,26 @@ After any change to `amplify/custom/`, `installation/` or `bc/`, run `./scripts/
 
 CDK diffs the stack and only rebuilds what changed. The seeder is skipped on updates — to rebuild the React UI or re-run seeding, manually trigger the `grow2-seeder-{account}-{region}-{deployment id}` CodeBuild project. See the [Updating Guide](install_docs/maintenance/UPDATING.md).
 
+### ✅ Validating a deployment
+
+`scripts/validate-deployment.sh` is a read-only check of a deployed stack against what this version of the code expects. It finds the root stack (by `--identifier` when several share the region), derives the deployment id, and asserts:
+
+| Check | What it proves |
+|-------|----------------|
+| 18 `GROW2-<id>-*` CloudFormation exports | the stack synthesized with per-deployment names |
+| 5 `*_<id>` AgentCore runtimes `READY`, and the Lambdas' export → runtime mapping | the search/proposal Lambdas will resolve the right agent ARNs |
+| Guardrail + WAF names, WAF attached to the AppSync API | security controls are live on *this* deployment |
+| `kb-<id>` OpenSearch collection `ACTIVE`, `kb-docs-…-<id>` bucket, Knowledge Base `ACTIVE` | the KB pipeline is wired |
+| Seeder project carries the id and last build `SUCCEEDED`; Amplify app found, `main` deploy `SUCCEED`, UI returns HTTP 200 | the hosted UI is up |
+| `--expect-env dev\|prod` | PITR / deletion-protection / demo-user state match the environment |
+| `--smoke` | invokes the US grants-search Lambda and watches the agent log for results |
+
+```bash
+./scripts/validate-deployment.sh us-east-1 --identifier alice --expect-env dev --smoke
+```
+
+The **release-level** check — two deployments in one region, redeploy with the scoped IAM policy, `GROW2_ENV=prod`, scoped teardown proving the other stack survives — is the seven-step [Validation Runbook](install_docs/deployment/VALIDATION_RUNBOOK.md). It has not yet been run against a live account for this version; the runbook ends with a timing table to fill in and copy into the [Updating Guide](install_docs/maintenance/UPDATING.md).
+
 ### Runtime Configuration
 
 The LLM call sites read their model and limits from environment variables, so tuning them — or upgrading the model — is a configuration change rather than a code edit:
@@ -531,7 +625,7 @@ The CloudShell path above is the **zero-install first deploy**. It is not the de
 | **1 — Run locally against the deployed backend** | an agent on `localhost:8080`, or the React app on `localhost:3000` | seconds–minutes | Agent prompts/scoring, UI work, API wiring |
 | **2 — Per-developer cloud sandbox** | `npx ampx sandbox` (watch mode) | ~30 s per Lambda change | Lambda handlers, schema, IAM — anything that must run *in* AWS |
 
-The same checks run on every pull request in GitHub Actions (`.github/workflows/ci.yml`): backend type-check, Python byte-compile of every handler and agent, the Lambda unit tests, and a React build — so a broken change is caught in ~3 minutes instead of after a 45-minute deploy.
+The same checks run on every pull request — see [Testing & CI](#testing--ci) — so a broken change is caught in ~3 minutes instead of after a 45-minute deploy.
 
 **Tier 0 — unit tests and type-check**
 
@@ -572,7 +666,7 @@ From a machine with Docker (the agent images are ARM64 — Apple Silicon, a Grav
 npm run sandbox            # npx ampx sandbox — first run is a full deploy, later edits are ~30 s
 ```
 
-Stop it with Ctrl-C; `npx ampx sandbox delete` removes the personal stack. A sandbox is a separate deployment with its own resource names, so it must live in a region that does not already host a GROW2 stack from this account (see *Important Disclaimers*).
+Stop it with Ctrl-C; `npx ampx sandbox delete` removes the personal stack. A sandbox is a separate deployment with its own deployment id, so it coexists with other GROW2 stacks in the same region — pass `--identifier <name>` to `ampx sandbox` (or set `GROW2_IDENTIFIER` for the CloudShell path) to name it.
 
 **What a change needs**
 
@@ -583,6 +677,17 @@ Stop it with Ctrl-C; `npx ampx sandbox delete` removes the personal stack. A san
 | React UI | Tier 1 `npm start` | `./scripts/deploy-ui.sh <region>` — Vite build + Amplify Hosting manual deploy, ~2 min, no CodeBuild |
 | CDK / IAM / schema | `npm run typecheck` → Tier 2 sandbox | deploy script |
 | Bedrock prompts (`config/domains/grants/prompts/`) | — | deploy script (CDK diffs only changed prompts) |
+
+### Testing & CI
+
+| Suite | Command | Count | Covers |
+|-------|---------|-------|--------|
+| Backend type-check | `npm run typecheck` | — | every `amplify/**/*.ts` (tsconfig.ci.json) |
+| Lambda unit tests | `npm test` (`scripts/test-lambdas.sh`) | 81 | the four `kb-*` resolvers: validation, auth, user isolation, S3/Bedrock error paths — boto3 mocked |
+| Shared agent package | `python -m pytest bc/common/tests` | 125 | source connectors (mocked httpx/S3), domain-config loader, and **golden tests** that pin `common/matching.py` to the numbers the original per-agent matchers produced |
+| Frontend build | `cd react-aws && npm run build` | — | Vite production build with a stub `amplify_outputs.json` |
+
+`.github/workflows/ci.yml` runs all of these plus a byte-compile of every handler and agent on each push and pull request. None of the jobs touch AWS or need secrets, and all of them are required checks.
 
 ### Replacing the Left Hand Nav Logo
 
@@ -646,15 +751,21 @@ cd Grant_Assistant
 
 > ⚠️ Run `export AWS_PAGER=""` first. Without it, the AWS CLI may open a pager mid-script and pause for input. If you see `(END)`, press `q` to continue.
 
-**Deletion time:** 30-45 minutes.
+With several deployments in the region, pass the same identifier you deployed with — `GROW2_IDENTIFIER=alice ./installation/delete-grow2.sh us-east-2` — and the script deletes only that stack and skips the account-wide sweeps. A `GROW2_ENV=prod` stack **retains** its tables, buckets and OpenSearch collection by design; remove those by hand afterwards (disable deletion protection first).
+
+**Deletion time:** 30-45 minutes (OpenSearch Serverless deletion is the floor).
 
 * * *
 
 <div align="left">
 
+### 📚 Documentation index
+
+[Architecture](docs/ARCHITECTURE.md) · [Validation Runbook](install_docs/deployment/VALIDATION_RUNBOOK.md) · [Deploy without admin](installation/iam/README.md) · [Updating](install_docs/maintenance/UPDATING.md) · [Monitoring](install_docs/maintenance/MONITORING.md) · [Agent logs](install_docs/logging/HOW-TO-READ-AGENT-LOGS.md) · [Known errors](install_docs/errors/KNOWN_ERRORS.md) · [Domain pack](config/domains/grants/README.md) · [Amplify Gen 2 overview](install_docs/development/AMPLIFY_GEN2_OVERVIEW.md)
+
 ### 🤝 Contributing
 
-Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md).
+Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md). `npm run typecheck && npm test` before opening a PR; CI runs the same checks.
 
 Licensed under the [MIT License](LICENSE).
 
