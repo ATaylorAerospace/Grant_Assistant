@@ -28,6 +28,7 @@ from io import BytesIO
 bedrock_agent = boto3.client('bedrock-agent')
 dynamodb = boto3.resource('dynamodb')
 s3_client = boto3.client('s3')
+lambda_client = boto3.client('lambda')  # reused across invocations
 
 # Environment variables - Required
 KNOWLEDGE_BASE_ID = os.environ['KNOWLEDGE_BASE_ID']
@@ -45,6 +46,9 @@ BACKOFF_MULTIPLIER = 2
 
 # Sync job polling configuration
 SYNC_POLL_INTERVAL = 5  # seconds
+# Server-side size limit (mirrors kb-document-upload's 50 MB). The upload Lambda
+# only validates the client-declared size, so the real object size is enforced here.
+MAX_FILE_SIZE_BYTES = int(os.environ.get('MAX_FILE_SIZE_BYTES', str(50 * 1024 * 1024)))
 SYNC_MAX_WAIT = 300  # 5 minutes max wait
 
 
@@ -243,6 +247,16 @@ def process_s3_record(record: Dict[str, Any]) -> Dict[str, Any]:
     
     # Get document metadata from DynamoDB to retrieve grant metadata
     document_metadata = get_document_metadata(user_id, document_id)
+
+    # Refuse oversized objects before downloading them. This is the first point where
+    # the real size is known; raising follows the same failure path as a bad key above.
+    head = s3_client.head_object(Bucket=bucket_name, Key=object_key)
+    content_length = int(head.get('ContentLength') or 0)
+    if content_length > MAX_FILE_SIZE_BYTES:
+        raise ValueError(
+            f"Object {object_key} is {content_length:,} bytes, over the "
+            f"{MAX_FILE_SIZE_BYTES:,}-byte limit; refusing to process"
+        )
     
     # Read S3 object content
     content = ""
@@ -782,7 +796,6 @@ def publish_status_update(document: Dict[str, Any]) -> None:
             print("⚠️  KB_MANAGER_FUNCTION_NAME not set, skipping real-time notification")
             return
         
-        lambda_client = boto3.client('lambda')
         
         # Build the GraphQL event that kbDocumentManager expects
         event = {

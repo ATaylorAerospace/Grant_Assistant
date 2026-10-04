@@ -173,8 +173,8 @@ class EuFundingPortalSource(GrantSource):
             if deadline_dates and deadline_dates[0]:
                 try:
                     deadline = datetime.fromtimestamp(deadline_dates[0] / 1000).strftime("%Y-%m-%d")
-                except (TypeError, ValueError, OSError):
-                    pass
+                except (ValueError, TypeError, OverflowError, OSError):
+                    pass  # unparseable deadline: leave blank
 
             details = grant.get("_detailsData", {})
             if details and details.get("description"):

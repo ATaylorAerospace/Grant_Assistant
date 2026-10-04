@@ -79,7 +79,12 @@ const schema = a
       })
       // PII model: Cognito-authenticated frontend and IAM-authenticated agents only.
       // publicApiKey removed so the shipped API key cannot read/write user profiles.
-      .authorization((allow) => [allow.authenticated()]),
+      .authorization((allow) => [allow.authenticated()])
+      // userId index so the grants-search agents look up a user's profiles with one
+      // indexed query instead of scanning the whole table on every search.
+      .secondaryIndexes((index) => [
+        index('userId').queryField('userProfilesByUser'),
+      ]),
 
     Proposal: a
       .model({

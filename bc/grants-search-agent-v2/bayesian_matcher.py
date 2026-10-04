@@ -13,6 +13,8 @@ import boto3
 import os as _os, sys as _sys
 _sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '..'))  # local runs: bc/ on path
 from common import domain_config  # noqa: E402
+from boto3.dynamodb.conditions import Key
+from botocore.exceptions import ClientError
 from decimal import Decimal
 
 logger = logging.getLogger(__name__)
@@ -26,39 +28,76 @@ USER_PROFILE_TABLE = os.environ['USER_PROFILE_TABLE']  # REQUIRED - set by CDK, 
 dynamodb = boto3.resource('dynamodb', region_name=AWS_REGION)
 user_profile_table = dynamodb.Table(USER_PROFILE_TABLE)
 
+# GSI on UserProfile.userId (see amplify/data/resource.ts). Amplify names the
+# DynamoDB index <models>By<Field> — the same convention as the existing
+# proposalsByUserId index used by the proposals-query Lambda.
+USER_PROFILE_USER_ID_INDEX = os.environ.get('USER_PROFILE_USER_ID_INDEX', 'userProfilesByUserId')
+
+# Error codes that mean "the index cannot be used here" (not deployed yet, or the
+# name differs): fall back to a table scan rather than failing the search.
+_INDEX_FALLBACK_ERRORS = ('ValidationException', 'ResourceNotFoundException', 'AccessDeniedException')
+
+
+def _paginate(operation, **kwargs) -> List[Dict[str, Any]]:
+    """Run a DynamoDB query/scan to completion.
+
+    A single call returns at most 1 MB, so an unpaginated call silently drops
+    matches once the table grows past one page.
+    """
+    items: List[Dict[str, Any]] = []
+    while True:
+        response = operation(**kwargs)
+        items.extend(response.get('Items', []))
+        last_key = response.get('LastEvaluatedKey')
+        if not last_key:
+            return items
+        kwargs['ExclusiveStartKey'] = last_key
+
+
+def _profiles_for_user(cognito_user_id: str) -> List[Dict[str, Any]]:
+    """All profiles owned by a user.
+
+    Uses the userId index (one indexed query) instead of scanning the whole
+    profile table with a filter on every search; falls back to a paginated scan
+    if the index is unavailable.
+    """
+    try:
+        return _paginate(
+            user_profile_table.query,
+            IndexName=USER_PROFILE_USER_ID_INDEX,
+            KeyConditionExpression=Key('userId').eq(cognito_user_id),
+        )
+    except ClientError as e:
+        code = e.response.get('Error', {}).get('Code', '')
+        if code not in _INDEX_FALLBACK_ERRORS:
+            raise
+        logger.warning(f"⚠️ Index {USER_PROFILE_USER_ID_INDEX} unavailable ({code}); scanning the profile table instead")
+        return _paginate(
+            user_profile_table.scan,
+            FilterExpression='userId = :uid',
+            ExpressionAttributeValues={':uid': cognito_user_id},
+        )
+
+
 def get_active_user_profile(cognito_user_id: str) -> Optional[Dict[str, Any]]:
     """Get the active profile for a Cognito user, with fallback to default profile"""
     try:
-        # First try to get active profile for this specific Cognito user
-        response = user_profile_table.scan(
-            FilterExpression='userId = :uid AND isActive = :active',
-            ExpressionAttributeValues={
-                ':uid': cognito_user_id,
-                ':active': True
-            }
-        )
-        
-        profiles = response.get('Items', [])
-        if profiles:
+        profiles = _profiles_for_user(cognito_user_id)
+
+        active = [p for p in profiles if p.get('isActive')]
+        if active:
             logger.info(f"✅ Found active profile for Cognito user {cognito_user_id}")
-            return profiles[0]  # Return first active profile
-        
-        # Fallback: get any profile for this Cognito user
-        response = user_profile_table.scan(
-            FilterExpression='userId = :uid',
-            ExpressionAttributeValues={':uid': cognito_user_id}
-        )
-        
-        profiles = response.get('Items', [])
+            return active[0]  # Return first active profile
+
         if profiles:
             logger.info(f"✅ Found profile for Cognito user {cognito_user_id}, using first available")
             return profiles[0]
-        
+
         # No profile found - fail explicitly
         logger.error(f"❌ No profile found for Cognito user {cognito_user_id}")
         logger.error(f"   User must create a profile in the Profile tab before using Bayesian matching")
         return None
-        
+
     except Exception as e:
         logger.error(f"❌ Error fetching profile for Cognito user {cognito_user_id}: {str(e)}")
         return None

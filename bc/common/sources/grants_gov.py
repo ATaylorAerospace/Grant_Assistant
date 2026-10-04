@@ -181,7 +181,7 @@ class GrantsGovSource(GrantSource):
                 clean = str(amount_str).replace("$", "").replace(",", "").strip()
                 if clean:
                     amount = float(clean)
-            except ValueError:
+            except (ValueError, TypeError):
                 amount = 0.0
 
         return cls.ui_grant(
