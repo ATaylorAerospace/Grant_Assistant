@@ -199,13 +199,24 @@ phases:
       - FILE_SIZE=$(wc -c < /tmp/amplify_outputs.json | tr -d ' ') && echo "amplify_outputs.json size $FILE_SIZE bytes"
       - if [ "$FILE_SIZE" -le 100 ]; then echo "ERROR amplify_outputs.json too small ($FILE_SIZE bytes) — CDK deploy likely failed"; exit 1; fi
       - |
+        # Several GROW2 deployments may share this region. The stack we just
+        # deployed is the most recently updated amplify-grow2-* root stack; its
+        # exports are prefixed with its (nested) stack names, so pick by stack.
+        ROOT_STACK=$(aws cloudformation describe-stacks --region PLACEHOLDER_REGION \
+          --query 'sort_by(Stacks[?starts_with(StackName,`amplify-grow2-`) && !contains(StackName,`-data`) && !contains(StackName,`-function`) && !contains(StackName,`-auth`) && !contains(StackName,`AgentCore`) && !contains(StackName,`BedrockPrompts`)], &LastUpdatedTime)[-1].StackName' \
+          --output text 2>/dev/null || echo "")
+        echo "Root stack: $ROOT_STACK"
         APP_BUCKET=$(aws cloudformation list-exports --region PLACEHOLDER_REGION \
-          --query 'Exports[?ends_with(Name,`-DeploymentAssetsBucket`)].Value' \
+          --query "Exports[?ends_with(Name,\`-DeploymentAssetsBucket\`) && starts_with(ExportingStackId, \`arn:aws:cloudformation:PLACEHOLDER_REGION:PLACEHOLDER_ACCOUNT:stack/${ROOT_STACK}\`)].Value" \
           --output text 2>/dev/null | head -n1 || echo "")
         if [ -z "$APP_BUCKET" ] || [ "$APP_BUCKET" = "None" ]; then
-          echo "ERROR app deployment bucket not found in CloudFormation exports — cannot upload artifacts"
+          echo "ERROR app deployment bucket not found in CloudFormation exports of $ROOT_STACK — cannot upload artifacts"
           exit 1
         fi
+        SEEDER_PROJECT=$(aws cloudformation list-exports --region PLACEHOLDER_REGION \
+          --query "Exports[?ends_with(Name,\`-SeederProjectName\`) && starts_with(ExportingStackId, \`arn:aws:cloudformation:PLACEHOLDER_REGION:PLACEHOLDER_ACCOUNT:stack/${ROOT_STACK}\`)].Value" \
+          --output text 2>/dev/null | head -n1 || echo "")
+        echo "$SEEDER_PROJECT" > /tmp/seeder_project_name
         echo "App bucket: $APP_BUCKET"
         echo "Uploading amplify_outputs.json to app bucket..."
         aws s3 cp /tmp/amplify_outputs.json s3://$APP_BUCKET/codebuild-deploy/amplify_outputs.json --region PLACEHOLDER_REGION
@@ -221,7 +232,11 @@ phases:
         echo "SUCCESS all artifacts uploaded to app bucket: $APP_BUCKET"
       - echo "Triggering seeder..."
       - |
-        SEEDER_PROJECT="grow2-seeder-PLACEHOLDER_ACCOUNT-PLACEHOLDER_REGION"
+        SEEDER_PROJECT=$(cat /tmp/seeder_project_name 2>/dev/null || true)
+        if [ -z "$SEEDER_PROJECT" ] || [ "$SEEDER_PROJECT" = "None" ]; then
+          echo "ERROR seeder project export not found — the stack deployed but seeding was not triggered"
+          exit 1
+        fi
         echo "Seeder project: $SEEDER_PROJECT"
         LATEST=$(aws codebuild list-builds-for-project --project-name "$SEEDER_PROJECT" \
           --sort-order DESCENDING --query 'ids[0]' --output text 2>/dev/null || echo "")

@@ -1977,6 +1977,7 @@ const postDeploymentSeeder = new PostDeploymentSeeder(
     // dev/prod — prod skips the demo user and retains the build key
     grow2Env: deployment.env,
     removalPolicy: deployment.removalPolicy,
+    deploymentId: deployment.deploymentId,
   }
 );
 

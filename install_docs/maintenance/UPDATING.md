@@ -32,7 +32,7 @@ When you run the deploy script against an existing stack:
 3. Inside CodeBuild, `npx ampx sandbox --once` runs a CDK diff — only changed resources are updated
 4. If agent code changed (e.g. `bc/proposal-generation-agent/agent.py`), CDK rebuilds and pushes only that Docker image
 5. If the React UI changed (`react-aws/`), the new source is uploaded to S3 and the seeder rebuilds and redeploys to Amplify Hosting
-6. The seeder (`grow2-seeder-{account}-{region}`) checks its last build status — if it previously **Succeeded**, it skips re-seeding (idempotency). This is intentional: you don't want to overwrite real user data on every update.
+6. The seeder (`grow2-seeder-{account}-{region}-{deployment id}`) checks its last build status — if it previously **Succeeded**, it skips re-seeding (idempotency). This is intentional: you don't want to overwrite real user data on every update.
 
 ---
 
@@ -73,7 +73,7 @@ Go to [CodeBuild → Build projects](https://console.aws.amazon.com/codesuite/co
 | Project | What it does |
 |---------|-------------|
 | `grow2-arm64-deployer-{region}` | Deploys CDK stack changes |
-| `grow2-seeder-{account}-{region}` | Rebuilds and redeploys React app (if UI changed) |
+| `grow2-seeder-{account}-{region}-{deployment id}` | Rebuilds and redeploys React app (if UI changed) |
 
 If either shows **Failed**, check its build logs. See [Known Errors](../errors/KNOWN_ERRORS.md) for common issues.
 
@@ -92,7 +92,7 @@ However, there are cases where you need the seeder to run again:
 **To manually trigger the seeder:**
 
 1. Go to AWS Console → **CodeBuild** → **Build projects**
-2. Find `grow2-seeder-{account}-{region}` (e.g. `grow2-seeder-483272795794-us-east-1`)
+2. Find `grow2-seeder-{account}-{region}-{deployment id}` (e.g. `grow2-seeder-483272795794-us-east-1-a1b2c3d4`)
 3. Click **Start build**
 4. Wait for **Succeeded** (~8-10 min)
 

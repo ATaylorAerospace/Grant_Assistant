@@ -47,6 +47,9 @@ export interface PostDeploymentSeederProps {
 
     // 'dev' | 'prod' — prod skips demo-user seeding (see amplify/custom/deployment.ts)
     grow2Env?: string;
+    // Unique per deployment; suffixes the CodeBuild project name so two
+    // deployments in one account/region do not collide (see deployment.ts)
+    deploymentId?: string;
     removalPolicy?: RemovalPolicy;
 }
 
@@ -268,7 +271,7 @@ export class PostDeploymentSeeder extends Construct {
 
         // Create CodeBuild project
         this.buildProject = new codebuild.Project(this, 'SeedingProject', {
-            projectName: `grow2-seeder-${Stack.of(this).account}-${Stack.of(this).region}`,
+            projectName: `grow2-seeder-${Stack.of(this).account}-${Stack.of(this).region}${props.deploymentId ? `-${props.deploymentId}` : ''}`,
             description: 'Automated post-deployment data seeding and Amplify Hosting deployment',
             role: this.buildRole,
             encryptionKey: buildEncryptionKey, // SECURITY FIX: CB4 - Use KMS encryption

@@ -24,15 +24,24 @@ fi
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEST="$REPO_ROOT/react-aws/src/amplify_outputs.json"
 
-BUCKET=$(aws cloudformation list-exports --region "$REGION" \
-  --query 'Exports[?ends_with(Name,`-DeploymentAssetsBucket`)].Value' \
-  --output text 2>/dev/null | head -n1 || true)
+# One export per deployment. With several deployments in the region, pick by
+# GROW2_IDENTIFIER (the stack is amplify-grow2-<identifier>-sandbox-<hash>).
+PREFIX="amplify-grow2-${GROW2_IDENTIFIER:+${GROW2_IDENTIFIER}-}"
+MATCHES=$(aws cloudformation list-exports --region "$REGION" \
+  --query "Exports[?ends_with(Name,\`-DeploymentAssetsBucket\`) && contains(ExportingStackId, \`stack/${PREFIX}\`)].[Name,Value]" \
+  --output text 2>/dev/null || true)
+COUNT=$(printf '%s\n' "$MATCHES" | grep -c . || true)
 
-if [ -z "$BUCKET" ] || [ "$BUCKET" = "None" ]; then
-  echo "ERROR: no CloudFormation export ending in -DeploymentAssetsBucket in $REGION." >&2
+if [ "$COUNT" -eq 0 ]; then
+  echo "ERROR: no CloudFormation export ending in -DeploymentAssetsBucket for '${PREFIX}*' in $REGION." >&2
   echo "       Is GROW2 deployed in this region? (see README → Quick Start Deployment)" >&2
   exit 1
+elif [ "$COUNT" -gt 1 ]; then
+  echo "ERROR: $COUNT GROW2 deployments in $REGION — set GROW2_IDENTIFIER to choose one:" >&2
+  printf '%s\n' "$MATCHES" | sed 's/^/       /' >&2
+  exit 1
 fi
+BUCKET=$(printf '%s\n' "$MATCHES" | awk '{print $2}')
 
 echo "Deployment assets bucket: $BUCKET"
 aws s3 cp "s3://$BUCKET/codebuild-deploy/amplify_outputs.json" "$DEST" --region "$REGION"
