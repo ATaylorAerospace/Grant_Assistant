@@ -44,12 +44,17 @@ You have two options for your first login:
 
 ### Option 1: Use Demo Account (Recommended for Testing)
 
-The post-deployment seeder creates a demo account:
+The post-deployment seeder creates a demo account, `test_user@example.com`, pre-configured with sample data. It has **no usable password by default** — the seeder generates a random one that is never shown — so set one before logging in:
 
-- **Username:** `test_user@example.com`
-- **Password:** `Password123!`
+```bash
+aws cognito-idp admin-set-user-password \
+  --user-pool-id <your-user-pool-id> \
+  --username test_user@example.com \
+  --password '<a strong password>' \
+  --permanent --region <region>
+```
 
-This account is pre-configured with sample data and is ready to use immediately.
+(Or set `SEED_TEST_USER_PASSWORD` when running the deploy script, for dev stacks only.) Do not reuse a password from documentation or examples.
 
 ### Option 2: Create Your Own Account
 

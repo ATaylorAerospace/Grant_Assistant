@@ -35,7 +35,7 @@ agentcore configure
 
 Follow the prompts:
 - Agent name: `proposal_generation_agent`
-- Use existing execution role: `arn:aws:iam::483272795794:role/AmazonBedrockAgentCoreSDKRuntime-us-east-2-c74d3dabdd`
+- Use existing execution role: `arn:aws:iam::123456789012:role/AmazonBedrockAgentCoreSDKRuntime-us-east-2-c74d3dabdd`
 - Memory: STM_AND_LTM (long-term memory)
 
 After deployment:
