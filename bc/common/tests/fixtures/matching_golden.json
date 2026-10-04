@@ -1,0 +1,758 @@
+{
+ "golden": {
+  "bayes": {
+   "biomedical_expert": {
+    "eu_awardceiling": {
+     "EU": 0.7516051839998099,
+     "US": 0.7217263372108147
+    },
+    "eu_flat_horizon_tags": {
+     "EU": 0.85054698392897,
+     "US": 0.85054698392897
+    },
+    "eu_zero_amount": {
+     "EU": 0.7439059184277552,
+     "US": 0.7439059184277552
+    },
+    "grantdata_nested_eu": {
+     "EU": 0.3262072228007727,
+     "US": 0.6020572773667265
+    },
+    "us_flat_dod_small": {
+     "EU": 0.8982228971101249,
+     "US": 0.8982228971101249
+    },
+    "us_flat_nih_cancer": {
+     "EU": 0.9162784622027937,
+     "US": 0.9162784622027937
+    },
+    "us_nested_nsf_ai": {
+     "EU": 0.3262072228007727,
+     "US": 0.7947912523829198
+    },
+    "us_no_amount": {
+     "EU": 0.7217263372108147,
+     "US": 0.7217263372108147
+    },
+    "us_string_amount": {
+     "EU": 0.14741650520094468,
+     "US": "RAISES:TypeError"
+    }
+   },
+   "unknown_type": {
+    "eu_awardceiling": {
+     "EU": 0.44757033248081846,
+     "US": 0.4098360655737705
+    },
+    "eu_flat_horizon_tags": {
+     "EU": 0.6037735849056604,
+     "US": 0.6037735849056604
+    },
+    "eu_zero_amount": {
+     "EU": 0.43750000000000006,
+     "US": 0.43750000000000006
+    },
+    "grantdata_nested_eu": {
+     "EU": 0.11475409836065574,
+     "US": 0.2883031301482702
+    },
+    "us_flat_dod_small": {
+     "EU": 0.7026499942640817,
+     "US": 0.7026499942640817
+    },
+    "us_flat_nih_cancer": {
+     "EU": 0.7455731593662628,
+     "US": 0.7455731593662628
+    },
+    "us_nested_nsf_ai": {
+     "EU": 0.11475409836065574,
+     "US": 0.5090909090909091
+    },
+    "us_no_amount": {
+     "EU": 0.4098360655737705,
+     "US": 0.4098360655737705
+    },
+    "us_string_amount": {
+     "EU": 0.04424778761061948,
+     "US": "RAISES:TypeError"
+    }
+   }
+  },
+  "features": {
+   "eu_awardceiling": {
+    "EU": {
+     "hasLargeAmount": false,
+     "hasMediumAmount": true,
+     "hasSmallAmount": false,
+     "isAI": false,
+     "isAlzheimers": true,
+     "isBasicScience": false,
+     "isBiomedical": true,
+     "isCancer": false,
+     "isClimateChange": false,
+     "isDOD": false,
+     "isDOE": false,
+     "isEducation": false,
+     "isEmbassy": false,
+     "isEngineering": false,
+     "isInternational": false,
+     "isNIH": false,
+     "isNSF": false,
+     "isSmallBusiness": false
+    },
+    "US": {
+     "hasLargeAmount": false,
+     "hasMediumAmount": false,
+     "hasSmallAmount": false,
+     "isAI": false,
+     "isAlzheimers": true,
+     "isBasicScience": false,
+     "isBiomedical": true,
+     "isCancer": false,
+     "isClimateChange": false,
+     "isDOD": false,
+     "isDOE": false,
+     "isEducation": false,
+     "isEmbassy": false,
+     "isEngineering": false,
+     "isInternational": false,
+     "isNIH": false,
+     "isNSF": false,
+     "isSmallBusiness": false
+    }
+   },
+   "eu_flat_horizon_tags": {
+    "EU": {
+     "hasLargeAmount": true,
+     "hasMediumAmount": false,
+     "hasSmallAmount": false,
+     "isAI": true,
+     "isAlzheimers": false,
+     "isBasicScience": false,
+     "isBiomedical": false,
+     "isCancer": false,
+     "isClimateChange": true,
+     "isDOD": false,
+     "isDOE": false,
+     "isEducation": false,
+     "isEmbassy": false,
+     "isEngineering": true,
+     "isInternational": false,
+     "isNIH": false,
+     "isNSF": false,
+     "isSmallBusiness": false
+    },
+    "US": {
+     "hasLargeAmount": true,
+     "hasMediumAmount": false,
+     "hasSmallAmount": false,
+     "isAI": true,
+     "isAlzheimers": false,
+     "isBasicScience": false,
+     "isBiomedical": false,
+     "isCancer": false,
+     "isClimateChange": true,
+     "isDOD": false,
+     "isDOE": false,
+     "isEducation": false,
+     "isEmbassy": false,
+     "isEngineering": true,
+     "isInternational": false,
+     "isNIH": false,
+     "isNSF": false,
+     "isSmallBusiness": false
+    }
+   },
+   "eu_zero_amount": {
+    "EU": {
+     "hasLargeAmount": false,
+     "hasMediumAmount": false,
+     "hasSmallAmount": false,
+     "isAI": true,
+     "isAlzheimers": false,
+     "isBasicScience": false,
+     "isBiomedical": false,
+     "isCancer": false,
+     "isClimateChange": false,
+     "isDOD": false,
+     "isDOE": false,
+     "isEducation": true,
+     "isEmbassy": false,
+     "isEngineering": true,
+     "isInternational": false,
+     "isNIH": false,
+     "isNSF": false,
+     "isSmallBusiness": false
+    },
+    "US": {
+     "hasLargeAmount": false,
+     "hasMediumAmount": false,
+     "hasSmallAmount": false,
+     "isAI": true,
+     "isAlzheimers": false,
+     "isBasicScience": false,
+     "isBiomedical": false,
+     "isCancer": false,
+     "isClimateChange": false,
+     "isDOD": false,
+     "isDOE": false,
+     "isEducation": true,
+     "isEmbassy": false,
+     "isEngineering": true,
+     "isInternational": false,
+     "isNIH": false,
+     "isNSF": false,
+     "isSmallBusiness": false
+    }
+   },
+   "grantdata_nested_eu": {
+    "EU": {
+     "hasLargeAmount": false,
+     "hasMediumAmount": true,
+     "hasSmallAmount": false,
+     "isAI": false,
+     "isAlzheimers": false,
+     "isBasicScience": false,
+     "isBiomedical": false,
+     "isCancer": false,
+     "isClimateChange": false,
+     "isDOD": false,
+     "isDOE": false,
+     "isEducation": false,
+     "isEmbassy": false,
+     "isEngineering": false,
+     "isInternational": false,
+     "isNIH": false,
+     "isNSF": false,
+     "isSmallBusiness": false
+    },
+    "US": {
+     "hasLargeAmount": false,
+     "hasMediumAmount": true,
+     "hasSmallAmount": false,
+     "isAI": false,
+     "isAlzheimers": false,
+     "isBasicScience": false,
+     "isBiomedical": true,
+     "isCancer": false,
+     "isClimateChange": false,
+     "isDOD": false,
+     "isDOE": false,
+     "isEducation": false,
+     "isEmbassy": false,
+     "isEngineering": false,
+     "isInternational": true,
+     "isNIH": false,
+     "isNSF": false,
+     "isSmallBusiness": false
+    }
+   },
+   "us_flat_dod_small": {
+    "EU": {
+     "hasLargeAmount": false,
+     "hasMediumAmount": false,
+     "hasSmallAmount": true,
+     "isAI": true,
+     "isAlzheimers": false,
+     "isBasicScience": false,
+     "isBiomedical": false,
+     "isCancer": false,
+     "isClimateChange": false,
+     "isDOD": true,
+     "isDOE": false,
+     "isEducation": true,
+     "isEmbassy": false,
+     "isEngineering": true,
+     "isInternational": false,
+     "isNIH": false,
+     "isNSF": false,
+     "isSmallBusiness": true
+    },
+    "US": {
+     "hasLargeAmount": false,
+     "hasMediumAmount": false,
+     "hasSmallAmount": true,
+     "isAI": true,
+     "isAlzheimers": false,
+     "isBasicScience": false,
+     "isBiomedical": false,
+     "isCancer": false,
+     "isClimateChange": false,
+     "isDOD": true,
+     "isDOE": false,
+     "isEducation": true,
+     "isEmbassy": false,
+     "isEngineering": true,
+     "isInternational": false,
+     "isNIH": false,
+     "isNSF": false,
+     "isSmallBusiness": true
+    }
+   },
+   "us_flat_nih_cancer": {
+    "EU": {
+     "hasLargeAmount": true,
+     "hasMediumAmount": false,
+     "hasSmallAmount": false,
+     "isAI": false,
+     "isAlzheimers": false,
+     "isBasicScience": false,
+     "isBiomedical": true,
+     "isCancer": true,
+     "isClimateChange": false,
+     "isDOD": false,
+     "isDOE": false,
+     "isEducation": false,
+     "isEmbassy": false,
+     "isEngineering": false,
+     "isInternational": false,
+     "isNIH": true,
+     "isNSF": false,
+     "isSmallBusiness": false
+    },
+    "US": {
+     "hasLargeAmount": true,
+     "hasMediumAmount": false,
+     "hasSmallAmount": false,
+     "isAI": false,
+     "isAlzheimers": false,
+     "isBasicScience": false,
+     "isBiomedical": true,
+     "isCancer": true,
+     "isClimateChange": false,
+     "isDOD": false,
+     "isDOE": false,
+     "isEducation": false,
+     "isEmbassy": false,
+     "isEngineering": false,
+     "isInternational": false,
+     "isNIH": true,
+     "isNSF": false,
+     "isSmallBusiness": false
+    }
+   },
+   "us_nested_nsf_ai": {
+    "EU": {
+     "hasLargeAmount": false,
+     "hasMediumAmount": true,
+     "hasSmallAmount": false,
+     "isAI": false,
+     "isAlzheimers": false,
+     "isBasicScience": false,
+     "isBiomedical": false,
+     "isCancer": false,
+     "isClimateChange": false,
+     "isDOD": false,
+     "isDOE": false,
+     "isEducation": false,
+     "isEmbassy": false,
+     "isEngineering": false,
+     "isInternational": false,
+     "isNIH": false,
+     "isNSF": false,
+     "isSmallBusiness": false
+    },
+    "US": {
+     "hasLargeAmount": false,
+     "hasMediumAmount": true,
+     "hasSmallAmount": false,
+     "isAI": true,
+     "isAlzheimers": false,
+     "isBasicScience": false,
+     "isBiomedical": false,
+     "isCancer": false,
+     "isClimateChange": false,
+     "isDOD": false,
+     "isDOE": false,
+     "isEducation": false,
+     "isEmbassy": false,
+     "isEngineering": true,
+     "isInternational": false,
+     "isNIH": false,
+     "isNSF": true,
+     "isSmallBusiness": false
+    }
+   },
+   "us_no_amount": {
+    "EU": {
+     "hasLargeAmount": false,
+     "hasMediumAmount": false,
+     "hasSmallAmount": false,
+     "isAI": false,
+     "isAlzheimers": false,
+     "isBasicScience": true,
+     "isBiomedical": false,
+     "isCancer": false,
+     "isClimateChange": false,
+     "isDOD": false,
+     "isDOE": false,
+     "isEducation": true,
+     "isEmbassy": false,
+     "isEngineering": false,
+     "isInternational": false,
+     "isNIH": false,
+     "isNSF": true,
+     "isSmallBusiness": false
+    },
+    "US": {
+     "hasLargeAmount": false,
+     "hasMediumAmount": false,
+     "hasSmallAmount": false,
+     "isAI": false,
+     "isAlzheimers": false,
+     "isBasicScience": true,
+     "isBiomedical": false,
+     "isCancer": false,
+     "isClimateChange": false,
+     "isDOD": false,
+     "isDOE": false,
+     "isEducation": true,
+     "isEmbassy": false,
+     "isEngineering": false,
+     "isInternational": false,
+     "isNIH": false,
+     "isNSF": true,
+     "isSmallBusiness": false
+    }
+   },
+   "us_string_amount": {
+    "EU": {
+     "hasLargeAmount": false,
+     "hasMediumAmount": false,
+     "hasSmallAmount": false,
+     "isAI": false,
+     "isAlzheimers": false,
+     "isBasicScience": false,
+     "isBiomedical": false,
+     "isCancer": false,
+     "isClimateChange": false,
+     "isDOD": false,
+     "isDOE": false,
+     "isEducation": false,
+     "isEmbassy": true,
+     "isEngineering": false,
+     "isInternational": true,
+     "isNIH": false,
+     "isNSF": false,
+     "isSmallBusiness": false
+    },
+    "US": "RAISES:TypeError"
+   }
+  },
+  "keyword": {
+   "eu_awardceiling": {
+    "": {
+     "EU": 0.5,
+     "US": 0.5
+    },
+    "artificial intelligence materials": {
+     "EU": 0.0,
+     "US": 0.0
+    },
+    "cancer immunotherapy": {
+     "EU": 0.0,
+     "US": 0.0
+    },
+    "climate cities": {
+     "EU": 0.0,
+     "US": 0.0
+    },
+    "genomics health": {
+     "EU": 0.0,
+     "US": 0.0
+    }
+   },
+   "eu_flat_horizon_tags": {
+    "": {
+     "EU": 0.5,
+     "US": 0.5
+    },
+    "artificial intelligence materials": {
+     "EU": 0.0,
+     "US": 0.0
+    },
+    "cancer immunotherapy": {
+     "EU": 0.0,
+     "US": 0.0
+    },
+    "climate cities": {
+     "EU": 0.5,
+     "US": 0.6000000000000001
+    },
+    "genomics health": {
+     "EU": 0.0,
+     "US": 0.0
+    }
+   },
+   "eu_zero_amount": {
+    "": {
+     "EU": 0.5,
+     "US": 0.5
+    },
+    "artificial intelligence materials": {
+     "EU": 0.0,
+     "US": 0.0
+    },
+    "cancer immunotherapy": {
+     "EU": 0.0,
+     "US": 0.0
+    },
+    "climate cities": {
+     "EU": 0.0,
+     "US": 0.0
+    },
+    "genomics health": {
+     "EU": 0.0,
+     "US": 0.0
+    }
+   },
+   "grantdata_nested_eu": {
+    "": {
+     "EU": 0.5,
+     "US": 0.5
+    },
+    "artificial intelligence materials": {
+     "EU": 0.0,
+     "US": 0.0
+    },
+    "cancer immunotherapy": {
+     "EU": 0.0,
+     "US": 0.0
+    },
+    "climate cities": {
+     "EU": 0.0,
+     "US": 0.0
+    },
+    "genomics health": {
+     "EU": 0.0,
+     "US": 0.7250000000000001
+    }
+   },
+   "us_flat_dod_small": {
+    "": {
+     "EU": 0.5,
+     "US": 0.5
+    },
+    "artificial intelligence materials": {
+     "EU": 0.0,
+     "US": 0.0
+    },
+    "cancer immunotherapy": {
+     "EU": 0.0,
+     "US": 0.0
+    },
+    "climate cities": {
+     "EU": 0.0,
+     "US": 0.0
+    },
+    "genomics health": {
+     "EU": 0.0,
+     "US": 0.0
+    }
+   },
+   "us_flat_nih_cancer": {
+    "": {
+     "EU": 0.5,
+     "US": 0.5
+    },
+    "artificial intelligence materials": {
+     "EU": 0.0,
+     "US": 0.0
+    },
+    "cancer immunotherapy": {
+     "EU": 0.5,
+     "US": 0.5
+    },
+    "climate cities": {
+     "EU": 0.0,
+     "US": 0.0
+    },
+    "genomics health": {
+     "EU": 0.1,
+     "US": 0.09375
+    }
+   },
+   "us_nested_nsf_ai": {
+    "": {
+     "EU": 0.5,
+     "US": 0.5
+    },
+    "artificial intelligence materials": {
+     "EU": 0.0,
+     "US": 0.47916666666666663
+    },
+    "cancer immunotherapy": {
+     "EU": 0.0,
+     "US": 0.0
+    },
+    "climate cities": {
+     "EU": 0.0,
+     "US": 0.0
+    },
+    "genomics health": {
+     "EU": 0.0,
+     "US": 0.0
+    }
+   },
+   "us_no_amount": {
+    "": {
+     "EU": 0.5,
+     "US": 0.5
+    },
+    "artificial intelligence materials": {
+     "EU": 0.0,
+     "US": 0.0
+    },
+    "cancer immunotherapy": {
+     "EU": 0.0,
+     "US": 0.0
+    },
+    "climate cities": {
+     "EU": 0.0,
+     "US": 0.0
+    },
+    "genomics health": {
+     "EU": 0.0,
+     "US": 0.0
+    }
+   },
+   "us_string_amount": {
+    "": {
+     "EU": 0.5,
+     "US": 0.5
+    },
+    "artificial intelligence materials": {
+     "EU": 0.0,
+     "US": 0.0
+    },
+    "cancer immunotherapy": {
+     "EU": 0.0,
+     "US": 0.0
+    },
+    "climate cities": {
+     "EU": 0.0,
+     "US": 0.0
+    },
+    "genomics health": {
+     "EU": 0.0,
+     "US": 0.0
+    }
+   }
+  }
+ },
+ "grants": {
+  "eu_awardceiling": {
+   "agency": "Horizon Europe",
+   "awardCeiling": 600000,
+   "description": "Dementia and neurodegeneration consortium.",
+   "grantId": "HORIZON-2",
+   "title": "Alzheimer research network"
+  },
+  "eu_flat_horizon_tags": {
+   "agency": "Horizon Europe",
+   "amount": 4000000,
+   "description": "Sustainability and environmental transition in urban areas.",
+   "grantId": "HORIZON-1",
+   "tags": [
+    "climate",
+    "cities"
+   ],
+   "title": "Climate neutral cities"
+  },
+  "eu_zero_amount": {
+   "agency": "Digital Europe",
+   "amount": 0,
+   "description": "Education programme.",
+   "grantId": "HORIZON-3",
+   "title": "Digital Europe training"
+  },
+  "grantdata_nested_eu": {
+   "amount": 1000000,
+   "grantData": {
+    "descriptionByte": "Biomedical genomics across international partners.",
+    "frameworkProgramme": {
+     "abbreviation": "HORIZON",
+     "description": "Horizon Europe"
+    },
+    "keywords": [
+     "genomics"
+    ],
+    "tags": [
+     "health"
+    ],
+    "title": "Global health genomics"
+   },
+   "grantId": "HORIZON-4"
+  },
+  "us_flat_dod_small": {
+   "agency": "DOD-ONR",
+   "amount": 75000.0,
+   "description": "Small business innovation research for navy robotics training.",
+   "grantId": "3",
+   "title": "SBIR Phase I: Robotics"
+  },
+  "us_flat_nih_cancer": {
+   "agency": "National Institutes of Health",
+   "amount": 2500000.0,
+   "description": "Clinical research on tumor immunology and oncology outcomes.",
+   "grantId": "1",
+   "tags": [],
+   "title": "Cancer Immunotherapy Trials"
+  },
+  "us_nested_nsf_ai": {
+   "amount": 450000.0,
+   "detailsData": {
+    "synopsis": {
+     "synopsisDesc": "Machine learning and artificial intelligence applied to materials engineering."
+    }
+   },
+   "grantId": "2",
+   "searchData": {
+    "agency": "NSF",
+    "title": "AI for Materials Discovery"
+   }
+  },
+  "us_no_amount": {
+   "agency": "NSF",
+   "description": "Student fellowship for theoretical statistics.",
+   "grantId": "4",
+   "title": "Fellowship in Mathematics"
+  },
+  "us_string_amount": {
+   "agency": "US Embassy Paris",
+   "amount": "50000",
+   "description": "International exchange.",
+   "grantId": "5",
+   "title": "Embassy Cultural Grant"
+  }
+ },
+ "profiles": {
+  "biomedical_expert": {
+   "agencies": [
+    "NIH"
+   ],
+   "early_investigator": "true",
+   "expertise_level": "expert",
+   "keywords": [
+    "cancer",
+    "immunology"
+   ],
+   "optimized_keywords": [
+    "oncology"
+   ],
+   "researcherType": "biomedical"
+  },
+  "unknown_type": {
+   "expertise_level": "",
+   "keywords": [],
+   "researcherType": ""
+  }
+ },
+ "queries": [
+  "cancer immunotherapy",
+  "artificial intelligence materials",
+  "climate cities",
+  "genomics health",
+  ""
+ ]
+}

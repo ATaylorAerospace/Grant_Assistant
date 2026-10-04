@@ -16,7 +16,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY common/ ./common/
 COPY eu-grants-search-agent-v2/agent.py .
 COPY eu-grants-search-agent-v2/appsync_client.py .
-COPY eu-grants-search-agent-v2/bayesian_matcher.py .
 
 EXPOSE 8080
 CMD ["python", "agent.py"]

@@ -18,7 +18,7 @@ funding domain replaces it.
 │ DOMAIN  (grants)                                                         │
 │  config/domains/grants/   prompts/ · matching.json · sources.json        │
 │  bc/common/sources/       grants_gov.py · eu_funding_portal.py           │
-│  bc/*/bayesian_matcher.py feature extraction (keyword lists) + scoring   │
+│  (matcher: bc/common/matching.py evaluates matching.json — platform)     │
 │  amplify/data/resource.ts GrantRecord · EuGrantRecord · Proposal …       │
 │  react-aws/src/components Grant Search · Proposals · Profile pages       │
 ├─────────────────────────────────────────────────────────────────────────┤
@@ -96,10 +96,11 @@ so it ships inside every agent image; `bc/invoke-local.sh` points
 
 ### What is still code
 
-- `extract_grant_features()` in `bc/*/bayesian_matcher.py` — the keyword lists
-  that turn a grant into boolean features (`isNIH`, `isCancer`, …). Moving these
-  into `matching.json` is the natural next step; the likelihoods they feed are
-  already there.
+- The matcher itself (`bc/common/matching.py`) is platform code: it evaluates
+  the `features`, `featureLikelihoods`, `keywordWeights` and per-`sources`
+  behaviour declared in `matching.json`, so a new domain changes the JSON, not
+  the Python. Golden tests in `bc/common/tests/test_matching.py` pin its
+  numbers to the original per-agent implementations.
 - The GraphQL models in `amplify/data/resource.ts` (`GrantRecord`,
   `EuGrantRecord`) and the React pages that render them.
 - The agency list in `amplify/custom/agent-discovery-stepfunction-v2.ts` and the
