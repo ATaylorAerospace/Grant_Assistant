@@ -65,21 +65,36 @@ def handler(event, context):
 
             user_id = authed_user_id
 
-            # Query using GSI
-            query_kwargs = {
-                'IndexName': 'proposalsByUserId',
-                'KeyConditionExpression': Key('userId').eq(user_id),
-                'ScanIndexForward': False,  # Sort by most recent first
-            }
-            # Read every page: a single query returns at most 1 MB, so users with
-            # many proposals would otherwise see only the first page.
+            # Query using GSI (support both Amplify index naming conventions:
+            # proposalsByUserId and proposalsByUser)
             items = []
-            while True:
-                response = table.query(**query_kwargs)
-                items.extend(response.get('Items', []))
-                if 'LastEvaluatedKey' not in response:
+            last_error = None
+            for index_name in ('proposalsByUserId', 'proposalsByUser'):
+                try:
+                    query_kwargs = {
+                        'IndexName': index_name,
+                        'KeyConditionExpression': Key('userId').eq(user_id),
+                        'ScanIndexForward': False,  # Sort by most recent first
+                    }
+                    # Read every page: a single query returns at most 1 MB, so users with
+                    # many proposals would otherwise see only the first page.
+                    items = []
+                    while True:
+                        response = table.query(**query_kwargs)
+                        items.extend(response.get('Items', []))
+                        if 'LastEvaluatedKey' not in response:
+                            break
+                        query_kwargs['ExclusiveStartKey'] = response['LastEvaluatedKey']
+                    last_error = None
                     break
-                query_kwargs['ExclusiveStartKey'] = response['LastEvaluatedKey']
+                except Exception as idx_err:
+                    if 'ValidationException' in str(idx_err) and index_name == 'proposalsByUserId':
+                        print(f"⚠️ Index {index_name} not found, falling back to proposalsByUser")
+                        last_error = idx_err
+                        continue
+                    raise
+            if last_error is not None:
+                raise last_error
             
             print(f"✅ Found {len(items)} proposals for user {user_id}")
             

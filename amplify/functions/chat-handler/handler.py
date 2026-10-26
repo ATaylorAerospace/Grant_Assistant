@@ -52,11 +52,13 @@ def handler(event, context):
     try:
         print(f"🚀 Chat handler started - Received event: {json.dumps(event)}")
         
-        # Route based on field name
-        field_name = event.get('fieldName')
+        # Route based on field name (support both direct fieldName and AppSync info.fieldName)
+        field_name = event.get('fieldName') or event.get('info', {}).get('fieldName')
         
         if field_name == 'listUserChatSessions':
             return handle_list_sessions(event, context)
+        elif field_name == 'getChatSession':
+            return handle_get_session(event, context)
         elif field_name == 'sendChatMessage':
             return handle_send_message(event, context)
         else:
@@ -109,6 +111,46 @@ def handle_list_sessions(event, context):
     except Exception as e:
         print(f"❌ Error listing sessions: {str(e)}")
         return []
+
+def handle_get_session(event, context):
+    """Handle getChatSession query"""
+    identity = event.get('identity') or {}
+    if 'sub' in identity:
+        user_id = identity['sub']
+    else:
+        user_id = identity.get('username', 'unknown-user')
+
+    session_id = event.get('arguments', {}).get('sessionId')
+    if not session_id:
+        raise ValueError("Missing required argument: sessionId")
+
+    print(f"📂 Fetching session {session_id} for user: {user_id}")
+    table = dynamodb.Table(CHAT_SESSIONS_TABLE)
+
+    try:
+        response = table.get_item(
+            Key={
+                'PK': f'USER#{user_id}',
+                'SK': f'SESSION#{session_id}'
+            }
+        )
+        item = response.get('Item')
+        if not item:
+            return None
+
+        return {
+            'sessionId': item['sessionId'],
+            'userId': item['userId'],
+            'userEmail': item.get('userEmail', ''),
+            'createdAt': item['createdAt'],
+            'updatedAt': item['updatedAt'],
+            'messages': item.get('messages', []),
+            'context': item.get('context', {}),
+            'summary': item.get('summary', '')
+        }
+    except Exception as e:
+        print(f"❌ Error getting session {session_id}: {str(e)}")
+        return None
 
 def handle_send_message(event, context):
     """Handle sendChatMessage mutation"""

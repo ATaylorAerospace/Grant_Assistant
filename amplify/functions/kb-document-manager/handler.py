@@ -57,7 +57,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
         # Determine which operation to perform based on field name
         # AppSync passes fieldName at the top level, not inside 'info'
-        field_name = event.get('fieldName')
+        field_name = event.get('fieldName') or event.get('info', {}).get('fieldName')
         
         if field_name == 'listDocuments':
             return handle_list_documents(event, user_id)

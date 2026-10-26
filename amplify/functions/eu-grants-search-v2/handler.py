@@ -117,13 +117,13 @@ def get_agent_arn_from_export():
     
     try:
         logger.info(f"[EU V2] Getting agent ARN from CloudFormation export: {AGENT_ARN_EXPORT_NAME}")
-        response = cfn_client.list_exports()
-        
-        for export in response.get('Exports', []):
-            if export['Name'] == AGENT_ARN_EXPORT_NAME:
-                _cached_agent_arn = export['Value']
-                logger.info(f"[EU V2] Found agent ARN: {_cached_agent_arn}")
-                return _cached_agent_arn
+        paginator = cfn_client.get_paginator('list_exports')
+        for page in paginator.paginate():
+            for export in page.get('Exports', []):
+                if export['Name'] == AGENT_ARN_EXPORT_NAME:
+                    _cached_agent_arn = export['Value']
+                    logger.info(f"[EU V2] Found agent ARN: {_cached_agent_arn}")
+                    return _cached_agent_arn
         
         logger.error(f"[EU V2] CloudFormation export not found: {AGENT_ARN_EXPORT_NAME}")
         raise ValueError(f"CloudFormation export not found: {AGENT_ARN_EXPORT_NAME}")
@@ -207,7 +207,13 @@ def lambda_handler(event, context):
     except Exception as e:
         logger.error(f"[EU V2] Error in grant search initiator: {str(e)}")
         
-        session_id = event.get('arguments', {}).get('input', {}).get('sessionId', 'unknown')
+        raw_input = event.get('arguments', {}).get('input', {})
+        if isinstance(raw_input, str):
+            try:
+                raw_input = json.loads(raw_input)
+            except Exception:
+                raw_input = {}
+        session_id = raw_input.get('sessionId', 'unknown') if isinstance(raw_input, dict) else 'unknown'
         
         error_result = {
             'eventType': 'SEARCH_ERROR',
@@ -367,7 +373,13 @@ def handle_start_eu_grant_search_v2(arguments: Dict[str, Any], cognito_user_id: 
     except Exception as e:
         logger.error(f"[EU V2] Error starting EU grant search: {str(e)}")
         
-        session_id = arguments.get('input', {}).get('sessionId', 'unknown')
+        raw_input = arguments.get('input', {})
+        if isinstance(raw_input, str):
+            try:
+                raw_input = json.loads(raw_input)
+            except Exception:
+                raw_input = {}
+        session_id = raw_input.get('sessionId', 'unknown') if isinstance(raw_input, dict) else 'unknown'
         error_result = {
             'eventType': 'SEARCH_ERROR',
             'sessionId': session_id,

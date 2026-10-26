@@ -35,7 +35,7 @@ def handler(event, context):
     
     try:
         # Extract field name (query name) from AppSync event
-        field_name = event.get('fieldName')
+        field_name = event.get('fieldName') or event.get('info', {}).get('fieldName')
         arguments = event.get('arguments', {})
         
         print(f"Field: {field_name}, Arguments: {json.dumps(arguments)}")

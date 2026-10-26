@@ -505,6 +505,9 @@ def invoke(payload):
                     'currentStep': f'Error: {str(e)}',
                     'error': str(e)
                 })
+            finally:
+                app.complete_async_task(task_id)
+                logger.info(f"[Proposal Agent] Completed async task: {task_id}")
         
         # Start background thread
         # daemon=False: thread must complete before process exits
@@ -815,13 +818,15 @@ def detect_agency(grant_data: Dict[str, Any]) -> str:
     
     # European Agencies - ALL map to "European-Commission-Prompt" for prompt lookup
     # This includes: Horizon Europe, Digital Europe Programme, LIFE Programme, etc.
+    # Note: Match 'EU' on word boundaries only so US agencies containing 'BUREAU'
+    # are not misclassified as European Commission grants.
     eu_keywords = [
-        'HORIZON', 'EUROPE', 'EUROPEAN', 'EU', 'DIGITAL EUROPE', 
+        'HORIZON', 'EUROPE', 'EUROPEAN', 'DIGITAL EUROPE', 
         'LIFE PROGRAMME', 'ERASMUS', 'CREATIVE EUROPE', 'INTERREG',
         'EUROPEAN COMMISSION', 'EUROPEAN UNION', 'FRAMEWORK PROGRAMME'
     ]
     
-    if any(kw in agency_upper for kw in eu_keywords):
+    if any(kw in agency_upper for kw in eu_keywords) or bool(re.search(r'\bEU\b', agency_upper)):
         # For prompt lookup, use "European-Commission-Prompt"
         # But preserve original agency name for metadata/filtering
         normalized = 'European-Commission-Prompt'

@@ -501,7 +501,9 @@ export class AgentCoreStack extends Stack {
             resources: [
                 `arn:aws:dynamodb:${deployRegion}:${this.account}:table/${proposalTableName}`,
                 `arn:aws:dynamodb:${deployRegion}:${this.account}:table/${proposalTableName}/index/proposalsByUser`,
+                `arn:aws:dynamodb:${deployRegion}:${this.account}:table/${proposalTableName}/index/proposalsByUserId`,
                 `arn:aws:dynamodb:${deployRegion}:${this.account}:table/${proposalTableName}/index/proposalsByGrant`,
+                `arn:aws:dynamodb:${deployRegion}:${this.account}:table/${proposalTableName}/index/proposalsByGrantId`,
             ],
         }));
 
@@ -512,7 +514,8 @@ export class AgentCoreStack extends Stack {
                 `arn:aws:dynamodb:${deployRegion}:${this.account}:table/${documentTableName}/index/listDocumentsByStatus`,
                 `arn:aws:dynamodb:${deployRegion}:${this.account}:table/${documentTableName}/index/listDocumentsByDate`,
                 `arn:aws:dynamodb:${deployRegion}:${this.account}:table/${userProfileTableName}`,
-                // UserProfile has no indexes - removed /index/* line
+                `arn:aws:dynamodb:${deployRegion}:${this.account}:table/${userProfileTableName}/index/userProfilesByUser`,
+                `arn:aws:dynamodb:${deployRegion}:${this.account}:table/${userProfileTableName}/index/userProfilesByUserId`,
             ],
         }));
 
