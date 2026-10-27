@@ -442,7 +442,7 @@ except Exception as e:
 PYEOF`,
                             'if [ "$GROW2_ENV" = "prod" ]; then echo "GROW2_ENV=prod — skipping demo user, profile and agent config"; else python3 /tmp/create_user.py; fi',
                             '',
-                            'export USER_ID=$(cat /tmp/user_id.txt)',
+                            'export USER_ID=$(cat /tmp/user_id.txt 2>/dev/null || echo "")',
                             'echo "USER_ID=$USER_ID"',
                             'echo ""',
 
@@ -625,7 +625,7 @@ with open("/tmp/config_id.txt", "w") as f:
 PYEOF`,
                             '[ "$GROW2_ENV" = "prod" ] || python3 /tmp/create_config.py',
                             '',
-                            'export CONFIG_ID=$(cat /tmp/config_id.txt)',
+                            'export CONFIG_ID=$(cat /tmp/config_id.txt 2>/dev/null || echo "")',
                             'echo "CONFIG_ID=$CONFIG_ID"',
                             'echo ""',
 
@@ -696,7 +696,7 @@ while elapsed < 1200:
 if elapsed >= 1200:
     print("⚠️  Timed out waiting for agent discovery (20 min)")
 PYEOF`,
-                            'python3 /tmp/run_discovery.py',
+                            '[ "$GROW2_ENV" = "prod" ] || python3 /tmp/run_discovery.py',
                             'echo ""',
 
                             'echo "==================================="',
@@ -811,6 +811,8 @@ except Exception as e:
     print(f"❌ Deployment error: {e}")
     import traceback
     traceback.print_exc()
+    import sys
+    sys.exit(1)
 PYEOF`,
                             'python3 /tmp/deploy_amplify.py',
                             'echo ""',
