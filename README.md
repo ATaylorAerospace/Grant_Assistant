@@ -495,6 +495,7 @@ User data is served only over **authenticated Cognito sessions**:
 - **The web client fails closed** — if there is no valid Cognito session it does **not** fall back to the API key; unauthenticated requests are rejected by AppSync.
 - **Proposal queries are identity-scoped** — the `listProposalsByUser` resolver derives the user from the authenticated identity, so a caller can only list their own proposals.
 - **Upload size is enforced server-side** — the KB document processor checks the real S3 object size before downloading it, so a client cannot declare a small file and upload a large one.
+- **Document status events are owner-scoped** — the `updateDocumentStatus` mutation rejects a `userId` other than the caller's (so no one can publish fake "ready"/"failed" events for another user's documents) and is Cognito-only; the UI additionally ignores events for other users' documents.
 
 > ℹ️ Model-level owner-scoping (`allow.owner()`) for auto-generated queries is a planned follow-up; today, cross-user isolation for proposals is enforced in the resolver layer.
 

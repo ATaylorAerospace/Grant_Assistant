@@ -66,7 +66,16 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         elif field_name == 'getDocumentStatus' or field_name == 'getDocument':
             return handle_get_document_status(event, user_id)
         elif field_name == 'updateDocumentStatus':
-            return handle_update_document_status(event)
+            return handle_update_document_status(event, user_id)
+        elif field_name == 'onDocumentStatusChanged':
+            # Invoked by AppSync when a client subscribes. Returning None accepts the
+            # subscription; previously this fell through to "Unknown operation" and
+            # raised, so every subscribe attempt failed and real-time updates never
+            # worked. Events are scoped to the subscriber client-side (see
+            # useDocumentStatusUpdates.js) because the AWSJSON payload cannot carry a
+            # server-side subscription filter.
+            print(f"Subscription accepted for user {user_id}")
+            return None
         else:
             raise Exception(f"Unknown operation: {field_name}")
         
@@ -465,7 +474,7 @@ def handle_get_document_status(event: Dict[str, Any], user_id: str) -> Dict[str,
         raise
 
 
-def handle_update_document_status(event: Dict[str, Any]) -> Dict[str, Any]:
+def handle_update_document_status(event: Dict[str, Any], caller_user_id: str) -> Dict[str, Any]:
     """
     Update document status (called by processor Lambda via AppSync)
     
@@ -502,10 +511,18 @@ def handle_update_document_status(event: Dict[str, Any]) -> Dict[str, Any]:
         document_id = input_data.get('documentId')
         user_id = input_data.get('userId')
         status = input_data.get('status')
-        
+
         if not all([document_id, user_id, status]):
             raise Exception("documentId, userId, and status are required")
-        
+
+        # SECURITY: the input's userId must be the caller's own identity. Without this
+        # any authenticated user could publish fake status events (e.g. "ready",
+        # "failed") for another user's documents. The processor Lambda invokes this
+        # handler with a synthetic identity whose sub is the document owner, so the
+        # legitimate path still passes.
+        if user_id != caller_user_id:
+            raise Exception("Unauthorized: cannot update status for another user's document")
+
         print(f"Updating document {document_id} status to {status} for user {user_id}")
         
         # This function is primarily for triggering subscriptions
