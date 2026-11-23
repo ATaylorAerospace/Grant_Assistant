@@ -109,6 +109,16 @@ def handler(event, context):
             content_type = 'text/html'
             filename = f"proposal-{proposal_id}.html"
         
+        # The key comes from the proposal record, which clients can write through
+        # the data API. Proposal files always live under "<owner id>/", so refuse
+        # anything else rather than serve another user's object.
+        if not isinstance(s3_key, str) or not s3_key.startswith(f"{user_id}/"):
+            print(f"❌ Access denied: S3 key outside the caller's prefix: {s3_key}")
+            return {
+                'statusCode': 403,
+                'body': json.dumps({'error': 'Access denied - file is outside your storage area'})
+            }
+
         print(f"📦 Fetching from S3: bucket={bucket_name}, key={s3_key}")
         
         # Get object from S3

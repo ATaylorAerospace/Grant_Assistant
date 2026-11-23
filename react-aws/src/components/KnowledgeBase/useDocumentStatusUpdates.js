@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import { generateClient } from 'aws-amplify/api';
+import { fetchAuthSession } from 'aws-amplify/auth';
 
 const client = generateClient();
 
 /**
  * Custom hook for real-time document status updates via GraphQL subscriptions
- * 
+ *
  * Usage:
  * const { statusUpdates, clearUpdate } = useDocumentStatusUpdates();
- * 
+ *
  * statusUpdates will contain the latest status change for each document
  */
 const useDocumentStatusUpdates = () => {
@@ -24,7 +25,28 @@ const useDocumentStatusUpdates = () => {
     `;
 
     let sub;
+    let cancelled = false;
     let hasShownError = false;
+
+    // The subscription is not filtered server-side (the payload is an AWSJSON
+    // scalar, which cannot carry a subscription filter), so every subscriber
+    // receives every user's events. Resolve the current user's id up front and
+    // only surface events for their own documents.
+    const start = async () => {
+      let currentUserId = null;
+      try {
+        const session = await fetchAuthSession();
+        currentUserId = session.tokens?.idToken?.payload?.sub
+          || session.tokens?.accessToken?.payload?.sub
+          || null;
+      } catch (e) {
+        console.warn('⚠️ Could not resolve current user for status updates:', e);
+      }
+      if (cancelled) return;
+      if (!currentUserId) {
+        console.info('💡 Real-time updates disabled: no authenticated user id.');
+        return;
+      }
 
     try {
       sub = client.graphql({
@@ -40,6 +62,11 @@ const useDocumentStatusUpdates = () => {
               : data.onDocumentStatusChanged;
           } catch (e) {
             console.error('❌ Failed to parse subscription data:', e);
+            return;
+          }
+
+          // Ignore other users' events (see note above).
+          if (!update || update.userId !== currentUserId) {
             return;
           }
 
@@ -69,17 +96,21 @@ const useDocumentStatusUpdates = () => {
           }
         }
       });
-
-      // Cleanup on unmount
-      return () => {
-        if (sub) {
-          sub.unsubscribe();
-        }
-      };
     } catch (error) {
       console.warn('⚠️ Failed to set up subscription (real-time updates disabled):', error);
       // Subscriptions are optional - don't show error to user
     }
+    };
+
+    start();
+
+    // Cleanup on unmount (also covers an unmount that happens before start() finishes)
+    return () => {
+      cancelled = true;
+      if (sub) {
+        sub.unsubscribe();
+      }
+    };
   }, []);
 
   const clearUpdate = (documentId) => {

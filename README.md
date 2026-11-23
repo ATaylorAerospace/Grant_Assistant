@@ -172,7 +172,7 @@ This fork modernizes the original AWS sample into a maintainable application. Th
 | Area | What changed | Read more |
 |------|--------------|-----------|
 | 🧪 **Local development loop** | Three tiers — unit tests + type-check in seconds, agents on `localhost:8080` and the UI on `:3000` against a deployed backend, per-developer `ampx sandbox` with Lambda hot-swap. Harness: `bc/invoke-local.sh`; outputs: `scripts/fetch-outputs.sh` | [Local Development](#local-development) |
-| ✅ **CI on every PR** | GitHub Actions: backend `tsc`, byte-compile of every handler/agent, 81 Lambda unit tests, 125 shared-package tests (connectors, domain config, matcher goldens), Vite build. Nothing touches AWS | [Testing & CI](#testing--ci) |
+| ✅ **CI on every PR** | GitHub Actions: backend `tsc`, byte-compile of every handler/agent, 97 Lambda unit tests, 125 shared-package tests (connectors, domain config, matcher goldens), Vite build. Nothing touches AWS | [Testing & CI](#testing--ci) |
 | ⚡ **Faster deploys** | CodeBuild Docker-layer + source caching; one pinned base image and identical pip layer across agents; CRA → **Vite** (build 13 s); `scripts/deploy-ui.sh` publishes a UI change in ~2 min with no CodeBuild | [What a change needs](#local-development) |
 | 🌍 **Multiple deployments per region** | Every account-unique name (AgentCore runtimes, Guardrail, WAF, OpenSearch collection, KB bucket, CodeBuild seeder, all CloudFormation exports) is suffixed with a per-deployment id; `GROW2_IDENTIFIER` selects a stack; teardown is scoped | [Environments](#-environments--multiple-deployments) |
 | 🔒 **`dev` / `prod` hardening** | `GROW2_ENV=prod`: RETAIN on data, PITR + deletion protection on every table, Lambda log retention, no demo user | [Environments](#-environments--multiple-deployments) |
@@ -495,6 +495,8 @@ User data is served only over **authenticated Cognito sessions**:
 - **The web client fails closed** — if there is no valid Cognito session it does **not** fall back to the API key; unauthenticated requests are rejected by AppSync.
 - **Proposal queries are identity-scoped** — the `listProposalsByUser` resolver derives the user from the authenticated identity, so a caller can only list their own proposals.
 - **Upload size is enforced server-side** — the KB document processor checks the real S3 object size before downloading it, so a client cannot declare a small file and upload a large one.
+- **Document status events are owner-scoped** — the `updateDocumentStatus` mutation rejects a `userId` other than the caller's (so no one can publish fake "ready"/"failed" events for another user's documents) and is Cognito-only; the UI additionally ignores events for other users' documents.
+- **Proposal downloads are confined to the caller's storage prefix** — `downloadProposal` refuses any S3 key that is not under the caller's own `<user id>/` prefix, so a tampered proposal record cannot be used to fetch another user's file.
 
 > ℹ️ Model-level owner-scoping (`allow.owner()`) for auto-generated queries is a planned follow-up; today, cross-user isolation for proposals is enforced in the resolver layer.
 
@@ -683,7 +685,7 @@ Stop it with Ctrl-C; `npx ampx sandbox delete` removes the personal stack. A san
 | Suite | Command | Count | Covers |
 |-------|---------|-------|--------|
 | Backend type-check | `npm run typecheck` | — | every `amplify/**/*.ts` (tsconfig.ci.json) |
-| Lambda unit tests | `npm test` (`scripts/test-lambdas.sh`) | 81 | the four `kb-*` resolvers: validation, auth, user isolation, S3/Bedrock error paths — boto3 mocked |
+| Lambda unit tests | `npm test` (`scripts/test-lambdas.sh`) | 97 | the chat handler (conversation building, session listing), the discovery scheduler (per-config isolation, execution naming), and the four `kb-*` resolvers: validation, auth, user isolation, S3/Bedrock error paths — boto3 mocked |
 | Shared agent package | `python -m pytest bc/common/tests` | 125 | source connectors (mocked httpx/S3), domain-config loader, and **golden tests** that pin `common/matching.py` to the numbers the original per-agent matchers produced |
 | Frontend build | `cd react-aws && npm run build` | — | Vite production build with a stub `amplify_outputs.json` |
 

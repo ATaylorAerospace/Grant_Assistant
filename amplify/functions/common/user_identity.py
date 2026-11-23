@@ -27,19 +27,18 @@ def extract_user_id(event):
     if not user_id and identity:
         claims = identity.get('claims', {})
         user_id = claims.get('sub') or claims.get('username') or claims.get('cognito:username')
-    
-    # Strategy 3: Try to get from arguments (for testing/direct invocation)
-    if not user_id:
-        arguments = event.get('arguments', {})
-        user_id = arguments.get('userId')
-    
-    # Strategy 4: Try to get from requestContext (API Gateway format)
+
+    # Strategy 3: API Gateway format (requestContext.authorizer.claims)
     if not user_id:
         request_context = event.get('requestContext', {})
         authorizer = request_context.get('authorizer', {})
         if authorizer:
             user_id = authorizer.get('claims', {}).get('sub')
-    
+
+    # NOTE: there is deliberately no fallback to arguments['userId']. That value is
+    # client-supplied; using it as the identity would let a caller act as any user
+    # (an IDOR). Identity must come from the authenticated request context only.
+
     if user_id:
         logger.info(f"✅ Extracted user ID: {user_id}")
     else:

@@ -532,7 +532,10 @@ const schema = a
       })
       .returns(a.json())
       .handler(a.handler.function(kbDocumentManager))
-      .authorization((allow) => [allow.authenticated(), allow.publicApiKey()]),
+      // Cognito only. The processor Lambda invokes the handler directly (not via
+      // AppSync) and the web client never calls this mutation, so the public API key
+      // had no legitimate caller — it only let key holders publish fake status events.
+      .authorization((allow) => [allow.authenticated()]),
 
     // Real-time subscription for document status changes
     onDocumentStatusChanged: a

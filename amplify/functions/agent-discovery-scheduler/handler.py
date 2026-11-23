@@ -6,6 +6,7 @@ Triggered by EventBridge, starts Step Function executions for all active users
 
 import json
 import os
+import re
 import boto3
 import logging
 from datetime import datetime, timezone
@@ -65,36 +66,52 @@ def handler(event, context):
         executions_started = []
         now = datetime.now(timezone.utc)
         
+        failures = []
+
         for config in configs:
             config_id = config.get('id')
             user_id = config.get('userId')
-            time_interval = int(config.get('timeInterval', 24))  # Hours
-            last_run = config.get('lastRun')
-            
-            # Determine if should run
-            should_run = False
-            reason = ""
-            
-            # If force run, skip timestamp checks
-            if is_force_run:
-                should_run = True
-                reason = "manual force run"
-            elif not last_run:
-                should_run = True
-                reason = "never run before"
-            else:
-                # Parse lastRun timestamp
-                from dateutil import parser
-                last_run_dt = parser.parse(last_run)
-                hours_since_last_run = (now - last_run_dt).total_seconds() / 3600
-                
-                if hours_since_last_run >= time_interval:
+
+            # Each config is handled independently: one malformed record or one
+            # failed start_execution must not stop every remaining user's
+            # discovery from being scheduled.
+            try:
+                if not config_id or not user_id:
+                    raise ValueError("config is missing id or userId")
+
+                time_interval = int(config.get('timeInterval', 24))  # Hours
+                last_run = config.get('lastRun')
+
+                # Determine if should run
+                should_run = False
+                reason = ""
+
+                # If force run, skip timestamp checks
+                if is_force_run:
                     should_run = True
-                    reason = f"{hours_since_last_run:.1f} hours since last run (interval: {time_interval}h)"
+                    reason = "manual force run"
+                elif not last_run:
+                    should_run = True
+                    reason = "never run before"
                 else:
-                    logger.info(f"Skipping config {config_id}: only {hours_since_last_run:.1f}h since last run (interval: {time_interval}h)")
-            
-            if should_run:
+                    # Parse lastRun timestamp
+                    from dateutil import parser
+                    last_run_dt = parser.parse(last_run)
+                    if last_run_dt.tzinfo is None:
+                        # Stored without an offset: treat as UTC. Subtracting a naive
+                        # datetime from an aware one raises TypeError.
+                        last_run_dt = last_run_dt.replace(tzinfo=timezone.utc)
+                    hours_since_last_run = (now - last_run_dt).total_seconds() / 3600
+
+                    if hours_since_last_run >= time_interval:
+                        should_run = True
+                        reason = f"{hours_since_last_run:.1f} hours since last run (interval: {time_interval}h)"
+                    else:
+                        logger.info(f"Skipping config {config_id}: only {hours_since_last_run:.1f}h since last run (interval: {time_interval}h)")
+
+                if not should_run:
+                    continue
+
                 # Start Step Function execution for this user
                 input_data = {
                     "source": "eventbridge-scheduler",
@@ -106,31 +123,41 @@ def handler(event, context):
                     },
                     "timestamp": now.isoformat().replace('+00:00', 'Z')
                 }
-                
-                execution_name = f"scheduled-{user_id[:8]}-{int(now.timestamp())}"
-                
+
+                # Name by config id, not the first 8 chars of the user id: a user with
+                # two active configs produced the same name twice in one run, and the
+                # second start_execution failed with ExecutionAlreadyExists. Names
+                # allow only [A-Za-z0-9_-] and at most 80 characters.
+                safe_config_id = re.sub(r'[^A-Za-z0-9_-]', '-', str(config_id))
+                execution_name = f"scheduled-{safe_config_id}"[:80 - 11] + f"-{int(now.timestamp())}"
+
                 logger.info(f"Starting execution for user {user_id}: {reason}")
-                
+
                 response = sfn_client.start_execution(
                     stateMachineArn=state_machine_arn,
                     name=execution_name,
                     input=json.dumps(input_data)
                 )
-                
+
                 executions_started.append({
                     'userId': user_id,
                     'configId': config_id,
                     'executionArn': response['executionArn'],
                     'reason': reason
                 })
-        
+            except Exception as config_error:
+                logger.error(f"Failed to schedule config {config_id} (user {user_id}): {config_error}", exc_info=True)
+                failures.append({'configId': config_id, 'userId': user_id, 'error': str(config_error)})
+
         logger.info(f"Started {len(executions_started)} Step Function executions")
         
         return {
             'statusCode': 200,
             'message': f'Started {len(executions_started)} agent discovery executions',
             'executionsStarted': len(executions_started),
-            'executions': executions_started
+            'executions': executions_started,
+            'failed': len(failures),
+            'failures': failures
         }
         
     except Exception as e:
