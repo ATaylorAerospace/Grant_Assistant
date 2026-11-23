@@ -91,17 +91,25 @@ def handle_list_sessions(event, context):
                 ':pk': f'USER#{user_id}'
             },
             ScanIndexForward=False,  # Most recent first
-            Limit=event['arguments'].get('limit', 10)
+            # `limit` arrives as None when the client sends an explicit null; boto3
+            # rejects Limit=None and the old code then returned an empty list.
+            Limit=max(1, min(int((event.get('arguments') or {}).get('limit') or 10), 100))
         )
         
         sessions = []
         for item in response.get('Items', []):
+            # Tolerate incomplete records: one malformed item must not raise and
+            # blank the user's whole session list.
+            session_id = item.get('sessionId') or str(item.get('SK', '')).replace('SESSION#', '', 1)
+            if not session_id:
+                continue
+            updated_at = item.get('updatedAt', '')
             sessions.append({
-                'sessionId': item['sessionId'],
-                'userId': item['userId'],
+                'sessionId': session_id,
+                'userId': item.get('userId', user_id),
                 'userEmail': item.get('userEmail', ''),
-                'createdAt': item['createdAt'],
-                'updatedAt': item['updatedAt'],
+                'createdAt': item.get('createdAt') or updated_at,
+                'updatedAt': updated_at,
                 'summary': item.get('summary', ''),
                 'messageCount': len(item.get('messages', []))
             })
@@ -193,6 +201,13 @@ def handle_send_message(event, context):
         create_new_session(session_id, user_id, user_email)
     else:
         print(f"📂 Using existing session: {session_id}")
+        # A client-supplied sessionId may not exist for this user (stale id, or an
+        # id that belongs to someone else). save_message would then create a
+        # partial item with no sessionId/createdAt, which broke session listing.
+        # Create the session properly first.
+        if not session_exists(session_id, user_id):
+            print(f"🆕 Session {session_id} not found for this user - creating it")
+            create_new_session(session_id, user_id, user_email)
     
     # Load chat history for context
     print("📚 Loading chat history...")
@@ -257,6 +272,44 @@ def create_new_session(session_id: str, user_id: str, user_email: str):
         }
     )
 
+def session_exists(session_id: str, user_id: str) -> bool:
+    """True if this user already has a session record with this id."""
+    table = dynamodb.Table(CHAT_SESSIONS_TABLE)
+    response = table.get_item(
+        Key={'PK': f'USER#{user_id}', 'SK': f'SESSION#{session_id}'},
+        ProjectionExpression='PK'
+    )
+    return 'Item' in response
+
+
+def build_conversation(chat_history: List[Dict], message: str, max_history: int = 10) -> List[Dict]:
+    """Turn stored history plus the new message into a valid Messages API list.
+
+    The API rejects empty message content and a conversation that does not start
+    with a user turn. Stored history can contain either (an assistant reply that
+    came back empty, or a half-saved exchange), and one such record made every
+    later request in that session fail. Drop empty messages, merge consecutive
+    same-role turns, and start from a user turn.
+    """
+    conversation: List[Dict] = []
+    for msg in chat_history[-max_history:]:
+        role = msg.get('role')
+        content = msg.get('content')
+        if role not in ('user', 'assistant') or not isinstance(content, str) or not content.strip():
+            continue
+        if conversation and conversation[-1]['role'] == role:
+            conversation[-1]['content'] += "\n\n" + content
+        else:
+            conversation.append({"role": role, "content": content})
+    while conversation and conversation[0]['role'] != 'user':
+        conversation.pop(0)
+    if conversation and conversation[-1]['role'] == 'user':
+        conversation[-1]['content'] += "\n\n" + message
+    else:
+        conversation.append({"role": "user", "content": message})
+    return conversation
+
+
 def load_chat_history(session_id: str, user_id: str) -> List[Dict]:
     """Load recent chat history for context"""
     table = dynamodb.Table(CHAT_SESSIONS_TABLE)
@@ -281,9 +334,6 @@ def generate_claude_response(message: str, chat_history: List[Dict], user_email:
     """Generate response using Claude Sonnet"""
     
     print(f"🧠 Building conversation context with {len(chat_history)} previous messages")
-    
-    # Build conversation context
-    conversation = []
     
     # Build comprehensive system prompt for research assistant
     system_prompt = f"""You are a specialized Research Funding Assistant helping {user_email} discover and secure research funding opportunities. You are an expert in:
@@ -344,18 +394,8 @@ Focus on empowering users to leverage the platform's AI-powered capabilities rat
 • Explain technical concepts in the context of grant research
 • Connect platform features to research funding strategies"""
     
-    # Add recent chat history for context
-    for msg in chat_history[-10:]:  # Last 10 messages for context
-        conversation.append({
-            "role": msg['role'],
-            "content": msg['content']
-        })
-    
-    # Add current message
-    conversation.append({
-        "role": "user",
-        "content": message
-    })
+    # Recent chat history (last 10 messages) plus the current message
+    conversation = build_conversation(chat_history, message)
     
     print(f"📝 Conversation has {len(conversation)} messages")
     
@@ -404,6 +444,10 @@ Focus on empowering users to leverage the platform's AI-powered capabilities rat
             (block.get('text', '') for block in response_body.get('content', []) if block.get('type') == 'text'),
             ''
         )
+        if not content.strip():
+            # Never store or return an empty assistant turn (see build_conversation).
+            print(f"⚠️ Model returned no text (stop_reason={stop_reason})")
+            return "I wasn't able to produce a response to that. Please try rephrasing your question."
         print(f"✅ Claude response: {len(content)} characters")
         print(f"🗣️ Claude full response: {content}")
         return content

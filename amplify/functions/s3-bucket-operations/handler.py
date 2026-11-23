@@ -12,6 +12,9 @@ logger.setLevel(logging.INFO)
 # Environment variables - Required, no fallbacks
 DISCOVERY_RESULTS_BUCKET = os.environ['DISCOVERY_RESULTS_BUCKET']
 
+# Most recent consolidated result files returned by listDiscoveryResults.
+MAX_LISTED_RESULTS = 200
+
 def handler(event, context):
     """
     Handle S3 bucket operations for Agent Discovery Results
@@ -95,15 +98,13 @@ def list_bucket_contents(s3_client, bucket_name, user_id):
         user_prefix = f'results/{user_id}/consolidated/'
         logger.info(f"Listing consolidated files with prefix: {user_prefix}")
         
-        response = s3_client.list_objects_v2(
-            Bucket=bucket_name,
-            Prefix=user_prefix,
-            MaxKeys=100
-        )
-        
+        # List every page. Keys are consolidated_<timestamp>.json, which S3 returns
+        # oldest-first, so a single 100-key page showed the OLDEST 100 results and
+        # dropped the newest ones once a user had more than 100.
         objects = []
-        if 'Contents' in response:
-            for obj in response['Contents']:
+        paginator = s3_client.get_paginator('list_objects_v2')
+        for page in paginator.paginate(Bucket=bucket_name, Prefix=user_prefix):
+            for obj in page.get('Contents', []):
                 objects.append({
                     'key': obj['Key'],
                     'size': obj['Size'],
@@ -113,6 +114,8 @@ def list_bucket_contents(s3_client, bucket_name, user_id):
         
         # Sort by last modified date (newest first)
         objects.sort(key=lambda x: x['lastModified'], reverse=True)
+        # Keep the response bounded (AppSync payload limit): newest results only.
+        objects = objects[:MAX_LISTED_RESULTS]
         
         logger.info(f"Found {len(objects)} consolidated files for user {user_id}")
         
